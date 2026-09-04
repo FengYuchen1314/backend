@@ -252,6 +252,7 @@ export class HostsRepository implements ICrud<HostsEntity> {
                 'in',
                 uuids.map((u) => getKyselyUuid(u)),
             )
+            .where('templateType', '=', 'XRAY_JSON')
             .execute();
     }
 

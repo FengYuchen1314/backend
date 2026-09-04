@@ -36,6 +36,7 @@ export * from './subscription-template.schema';
 export * from './tags.schema';
 export * from './tanstack-query';
 export * from './torrent-blocker-report.schema';
+export * from './topology.schema';
 export * from './users.schema';
 export * from './webhook';
 export * from './xray-json-advanced';

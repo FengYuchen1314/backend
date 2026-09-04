@@ -32,7 +32,7 @@
     "format:fix": "oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "test": "tsx --test src/modules/nodes/node-bootstrap.test.ts src/common/helpers/mieru-config/mieru-config.test.ts src/common/helpers/xray-config/xray-config.validator.test.ts src/modules/nodes/events/socks-user-sync.test.ts src/modules/nodes/managed-node-creation-policy.test.ts src/modules/subscription-template/generators/mieru-subscription.test.ts src/modules/subscription-template/generators/socks-subscription.test.ts src/modules/users/queries/get-prepared-mita-config-with-users/get-prepared-mita-config-with-users.test.ts src/queue/_nodes/start-node-retry.test.ts",
+    "test": "tsx --test src/modules/nodes/node-bootstrap.test.ts src/common/helpers/mieru-config/mieru-config.test.ts src/common/helpers/xray-config/xray-config.validator.test.ts src/modules/nodes/events/socks-user-sync.test.ts src/modules/nodes/managed-node-creation-policy.test.ts src/modules/subscription-template/generators/mieru-subscription.test.ts src/modules/subscription-template/generators/socks-subscription.test.ts src/modules/topologies/topology.test.ts src/modules/users/queries/get-prepared-mita-config-with-users/get-prepared-mita-config-with-users.test.ts src/queue/_nodes/start-node-retry.test.ts",
     "check": "oxfmt --check && oxlint",
     "fix": "oxfmt && oxlint --fix"
   },

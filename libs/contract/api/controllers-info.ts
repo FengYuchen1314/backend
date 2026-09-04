@@ -86,6 +86,11 @@ export const CONTROLLERS_INFO = {
         description: '',
         resource: 'subscription-template',
     },
+    TOPOLOGIES: {
+        tag: 'Topologies Controller',
+        description: 'Manage validated proxy chains and load-balancing graphs.',
+        resource: 'topologies',
+    },
     SUBSCRIPTION_SETTINGS: {
         tag: 'Subscription Settings Controller',
         description: '',

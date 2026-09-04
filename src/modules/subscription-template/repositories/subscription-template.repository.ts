@@ -13,6 +13,8 @@ import { TSubscriptionTemplateType } from '@libs/contracts/constants';
 import { SubscriptionTemplateEntity } from '../entities/subscription-template.entity';
 import { SubscriptionTemplateConverter } from '../subscription-template.converter';
 
+const INTERNAL_TOPOLOGY_TEMPLATE_TYPE = 'XBOARD_TOPOLOGY';
+
 @Injectable()
 export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplateEntity> {
     constructor(
@@ -34,8 +36,8 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
     }
 
     public async findByUUID(uuid: string): Promise<null | SubscriptionTemplateEntity> {
-        const result = await this.prisma.tx.subscriptionTemplate.findUnique({
-            where: { uuid },
+        const result = await this.prisma.tx.subscriptionTemplate.findFirst({
+            where: { uuid, templateType: { not: INTERNAL_TOPOLOGY_TEMPLATE_TYPE } },
         });
         if (!result) {
             return null;
@@ -71,6 +73,7 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
         const list = await this.prisma.tx.subscriptionTemplate.findMany({
             where: {
                 ...rest,
+                NOT: { templateType: INTERNAL_TOPOLOGY_TEMPLATE_TYPE },
                 templateJson: model.templateJson
                     ? { equals: model.templateJson as Prisma.InputJsonValue }
                     : undefined,
@@ -80,7 +83,9 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
     }
 
     public async findFirst(): Promise<null | SubscriptionTemplateEntity> {
-        const result = await this.prisma.tx.subscriptionTemplate.findFirst();
+        const result = await this.prisma.tx.subscriptionTemplate.findFirst({
+            where: { templateType: { not: INTERNAL_TOPOLOGY_TEMPLATE_TYPE } },
+        });
         if (!result) {
             return null;
         }
@@ -110,6 +115,7 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
         withContent: boolean = true,
     ): Promise<SubscriptionTemplateEntity[]> {
         const result = await this.prisma.tx.subscriptionTemplate.findMany({
+            where: { templateType: { not: INTERNAL_TOPOLOGY_TEMPLATE_TYPE } },
             select: {
                 viewPosition: true,
                 name: true,
@@ -181,6 +187,7 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
             .from(v)
             .set((eb) => ({ viewPosition: eb.ref('v.viewPosition') }))
             .whereRef('subscriptionTemplates.uuid', '=', 'v.uuid')
+            .where('subscriptionTemplates.templateType', '!=', INTERNAL_TOPOLOGY_TEMPLATE_TYPE)
             .execute();
 
         await this.prisma.tx
@@ -195,6 +202,7 @@ export class SubscriptionTemplateRepository implements ICrud<SubscriptionTemplat
             .select(sql<string>`unnest(tags)`.as('tag'))
             .distinct()
             .where('tags', 'is not', null)
+            .where('templateType', '!=', INTERNAL_TOPOLOGY_TEMPLATE_TYPE)
             .orderBy('tag')
             .execute();
 

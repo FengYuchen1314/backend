@@ -1309,4 +1309,45 @@ export const ERRORS = {
             httpCode: 400,
         }),
     },
+    TOPOLOGY_NOT_FOUND: {
+        code: 'XT001',
+        message: 'Topology not found',
+        httpCode: 404,
+    },
+    INVALID_TOPOLOGY: {
+        code: 'XT002',
+        message: 'Topology graph is invalid',
+        httpCode: 400,
+        withMessage: (message: string) => ({ code: 'XT002', message, httpCode: 400 }),
+    },
+    TOPOLOGY_VERSION_CONFLICT: {
+        code: 'XT003',
+        message: 'Topology version conflict',
+        httpCode: 409,
+    },
+    TOPOLOGY_NAME_ALREADY_EXISTS: {
+        code: 'XT004',
+        message: 'Topology name already exists',
+        httpCode: 400,
+    },
+    GET_TOPOLOGY_ERROR: {
+        code: 'XT005',
+        message: 'Get topology error',
+        httpCode: 500,
+    },
+    CREATE_TOPOLOGY_ERROR: {
+        code: 'XT006',
+        message: 'Create topology error',
+        httpCode: 500,
+    },
+    UPDATE_TOPOLOGY_ERROR: {
+        code: 'XT007',
+        message: 'Update topology error',
+        httpCode: 500,
+    },
+    DELETE_TOPOLOGY_ERROR: {
+        code: 'XT008',
+        message: 'Delete topology error',
+        httpCode: 500,
+    },
 } as const;
