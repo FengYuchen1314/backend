@@ -7,3 +7,4 @@ export * from './get-node.command';
 export * from './redeem-bootstrap.command';
 export * from './tags';
 export * from './update.command';
+export * from './edge-settings.command';

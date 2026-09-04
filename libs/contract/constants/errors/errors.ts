@@ -1365,4 +1365,9 @@ export const ERRORS = {
         message: 'Delete topology error',
         httpCode: 500,
     },
+    NODE_EDGE_VERSION_CONFLICT: {
+        code: 'XE001',
+        message: 'Reverse-proxy settings changed. Reload before saving.',
+        httpCode: 409,
+    },
 } as const;

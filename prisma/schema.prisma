@@ -211,6 +211,7 @@ model Nodes {
   hosts                        HostsToNodes[]
   connectedUsers               UserTraffic[]
   nodeMetas                    NodeMeta[]
+  edgeConfig                   NodeEdgeConfig?
   torrentBlockerReports        TorrentBlockerReports[]
 
   activeConfigProfile ConfigProfiles? @relation(fields: [activeConfigProfileUuid], references: [uuid], onDelete: SetNull)
@@ -641,6 +642,15 @@ model UserMeta {
 
   @@id([userId])
   @@map("user_meta")
+}
+
+model NodeEdgeConfig {
+  nodeId   BigInt @id @map("node_id")
+  revision Int
+  settings Json
+  node     Nodes @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@map("node_edge_config")
 }
 
 model NodeMeta {

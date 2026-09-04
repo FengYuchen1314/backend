@@ -8,6 +8,9 @@ import { KeygenModule } from '@modules/keygen/keygen.module';
 import { CamouflageDomainCacheService } from './camouflage-domain/camouflage-domain-cache.service';
 import { CamouflageDomainService } from './camouflage-domain/camouflage-domain.service';
 import { COMMANDS } from './commands';
+import { NodeEdgeSettingsController } from './edge/node-edge-settings.controller';
+import { NodeEdgeSettingsRepository } from './edge/node-edge-settings.repository';
+import { NodeEdgeSettingsService } from './edge/node-edge-settings.service';
 import { EVENTS } from './events';
 import { NodeBootstrapController } from './node-bootstrap.controller';
 import { NodeBootstrapService } from './node-bootstrap.service';
@@ -20,9 +23,11 @@ import { NodesRepository } from './repositories/nodes.repository';
 
 @Module({
     imports: [CqrsModule, KeygenModule, AxiosModule],
-    controllers: [NodesController, NodeBootstrapController],
+    controllers: [NodesController, NodeBootstrapController, NodeEdgeSettingsController],
     providers: [
         NodesRepository,
+        NodeEdgeSettingsRepository,
+        NodeEdgeSettingsService,
         NodesConverter,
         NodesService,
         NodesSystemCacheService,
