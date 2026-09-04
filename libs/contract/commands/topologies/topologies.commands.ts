@@ -91,10 +91,17 @@ export namespace UpdateTopologyCommand {
             expectedVersion: z.int().positive(),
             name: TopologyNameSchema.optional(),
             graph: TopologyGraphSchema.optional(),
+            isPublished: z.boolean().optional(),
         })
-        .refine((value) => value.name !== undefined || value.graph !== undefined, {
-            error: 'At least one of name or graph must be provided',
-        });
+        .refine(
+            (value) =>
+                value.name !== undefined ||
+                value.graph !== undefined ||
+                value.isPublished !== undefined,
+            {
+                error: 'At least one of name, graph or isPublished must be provided',
+            },
+        );
     export const ResponseSchema = z.object({ response: TopologySchema });
     export type RequestParam = z.infer<typeof RequestParamSchema>;
     export type RequestBody = z.infer<typeof RequestBodySchema>;

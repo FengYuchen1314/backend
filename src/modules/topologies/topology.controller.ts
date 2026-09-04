@@ -88,7 +88,13 @@ export class TopologyController {
     ): Promise<UpdateTopologyResponseDto> {
         return {
             response: errorHandler(
-                await this.service.update(param.uuid, body.expectedVersion, body.name, body.graph),
+                await this.service.update(
+                    param.uuid,
+                    body.expectedVersion,
+                    body.name,
+                    body.graph,
+                    body.isPublished,
+                ),
             ),
         };
     }

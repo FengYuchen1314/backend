@@ -46,10 +46,13 @@ export class TopologyService {
         }
     }
 
-    public async validateGraph(graph: TTopologyGraph): Promise<TResult<TTopologyValidationResult>> {
+    public async validateGraph(
+        graph: TTopologyGraph,
+        forPublication = false,
+    ): Promise<TResult<TTopologyValidationResult>> {
         try {
-            const references = await this.repository.getReferenceSnapshot(graph);
-            return ok(this.validator.validate(graph, references));
+            const references = await this.repository.getReferenceSnapshot(graph, forPublication);
+            return ok(this.validator.validate(graph, references, forPublication));
         } catch (error) {
             this.logger.error(error);
             return fail(ERRORS.GET_TOPOLOGY_ERROR);
@@ -115,6 +118,7 @@ export class TopologyService {
         expectedVersion: number,
         name?: string,
         graph?: TTopologyGraph,
+        isPublished?: boolean,
     ): Promise<TResult<TTopology>> {
         try {
             const current = await this.repository.findByUuid(uuid);
@@ -125,8 +129,9 @@ export class TopologyService {
 
             const nextName = name ?? current.name;
             const nextGraph = graph ?? current.graph;
-            if (graph) {
-                const validation = await this.validateGraph(graph);
+            const nextPublished = isPublished ?? current.isPublished;
+            if (graph || nextPublished) {
+                const validation = await this.validateGraph(nextGraph, nextPublished);
                 if (!validation.isOk) return validation;
                 if (!validation.response.valid) {
                     return fail(
@@ -143,6 +148,7 @@ export class TopologyService {
                 expectedVersion,
                 nextName,
                 nextGraph,
+                nextPublished,
             );
             return updated ? ok(updated) : fail(ERRORS.TOPOLOGY_VERSION_CONFLICT);
         } catch (error) {

@@ -4,9 +4,11 @@ import { isNonEmptyObject, parseIntRangeUtil } from '@common/utils';
 import { FINGERPRINTS } from '@libs/contracts/constants';
 
 import { SubscriptionTemplateService } from '@modules/subscription-template/subscription-template.service';
+import type { BoundSubscriptionTopology } from '@modules/topologies/topology-subscription.service';
 
 import { applyHostMapper } from '../host-mapper';
 import { ResolvedProxyConfig } from '../resolve-proxy/interfaces';
+import { renderTopologies, TopologyInjection } from './topology-render';
 
 /**
  * Target: sing-box 1.13.x
@@ -117,6 +119,7 @@ export class SingBoxGeneratorService {
     public async generateConfig(
         hosts: ResolvedProxyConfig[],
         overrideTemplateName?: string,
+        topologies: readonly BoundSubscriptionTopology[] = [],
     ): Promise<string> {
         try {
             const template = (await this.subscriptionTemplateService.getCachedTemplateByType(
@@ -136,7 +139,20 @@ export class SingBoxGeneratorService {
                 userOutbounds.push(outbound);
             }
 
-            return this.renderConfig(template, userOutbounds);
+            const reserved = [
+                ...userOutbounds.map((outbound) => outbound.tag),
+                ...(Array.isArray(template.outbounds)
+                    ? (template.outbounds as Array<{ tag?: string }>).map(
+                          (outbound) => outbound.tag ?? '',
+                      )
+                    : []),
+            ];
+            const injection = renderTopologies(topologies, 'SINGBOX', reserved, (host) =>
+                UNSUPPORTED_TRANSPORTS.has(host.transport)
+                    ? null
+                    : (this.buildOutbound(host) as unknown as Record<string, unknown> | null),
+            );
+            return this.renderConfig(template, userOutbounds, injection);
         } catch (error) {
             this.logger.error(`Error generating sing-box config: ${error}`);
             return '';
@@ -582,6 +598,7 @@ export class SingBoxGeneratorService {
     private renderConfig(
         template: Record<string, unknown>,
         userOutbounds: OutboundConfig[],
+        injection: TopologyInjection = { entries: [], proxies: [], groups: [] },
     ): string {
         const allOutbounds = [...(template.outbounds as OutboundConfig[]), ...userOutbounds];
 
@@ -600,14 +617,21 @@ export class SingBoxGeneratorService {
                 return cleanOutbound;
             }
             if (cleanOutbound.type === 'urltest') {
-                return { ...cleanOutbound, outbounds: urltestTags };
+                return { ...cleanOutbound, outbounds: [...urltestTags, ...injection.entries] };
             }
             if (cleanOutbound.type === 'selector') {
-                return { ...cleanOutbound, outbounds: selectorTags };
+                return { ...cleanOutbound, outbounds: [...selectorTags, ...injection.entries] };
             }
             return cleanOutbound;
         });
 
-        return JSON.stringify({ ...template, outbounds: finalOutbounds }, null, 0);
+        return JSON.stringify(
+            {
+                ...template,
+                outbounds: [...finalOutbounds, ...injection.proxies, ...injection.groups],
+            },
+            null,
+            0,
+        );
     }
 }

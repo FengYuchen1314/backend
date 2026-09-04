@@ -7,9 +7,11 @@ import { isNonEmptyObject, parseIntRangeUtil } from '@common/utils';
 import { FINGERPRINTS } from '@libs/contracts/constants';
 
 import { SubscriptionTemplateService } from '@modules/subscription-template/subscription-template.service';
+import type { BoundSubscriptionTopology } from '@modules/topologies/topology-subscription.service';
 
 import { applyHostMapper } from '../host-mapper';
 import { ResolvedProxyConfig } from '../resolve-proxy/interfaces';
+import { renderTopologies, TopologyInjection } from './topology-render';
 
 export interface MihomoData {
     proxies: ProxyNode[];
@@ -134,6 +136,7 @@ export class MihomoGeneratorService {
         isStash = false,
         isExtendedClient = false,
         overrideTemplateName?: string,
+        topologies: readonly BoundSubscriptionTopology[] = [],
     ): Promise<string> {
         try {
             const templateType = isStash ? 'STASH' : 'MIHOMO';
@@ -166,7 +169,37 @@ export class MihomoGeneratorService {
                 proxyRemarks.push(host.finalRemark);
             }
 
-            return await this.renderConfig(data, proxyRemarks, yamlConfig);
+            const reserved = [
+                ...data.proxies.map((node) => node.name),
+                ...['proxies', 'proxy-groups'].flatMap((key) =>
+                    Array.isArray(yamlConfig[key])
+                        ? (yamlConfig[key] as Array<{ name?: string }>).map(
+                              (node) => node.name ?? '',
+                          )
+                        : [],
+                ),
+                'DIRECT',
+                'REJECT',
+                'GLOBAL',
+                'PASS',
+                'COMPATIBLE',
+            ];
+            const injection = renderTopologies(
+                isStash ? [] : topologies,
+                'MIHOMO',
+                reserved,
+                (host) =>
+                    UNSUPPORTED_TRANSPORTS.has(host.transport) ||
+                    UNSUPPORTED_PROTOCOLS.has(host.protocol)
+                        ? null
+                        : this.buildProxyNode(host, isExtendedClient),
+            );
+            return await this.renderConfig(
+                data,
+                [...proxyRemarks, ...injection.entries],
+                yamlConfig,
+                injection,
+            );
         } catch (error) {
             this.logger.error('Error generating clash config:', error);
             return '';
@@ -584,6 +617,7 @@ export class MihomoGeneratorService {
         data: MihomoData,
         proxyRemarks: string[],
         yamlConfig: Record<string, unknown>,
+        injection: TopologyInjection = { entries: [], proxies: [], groups: [] },
     ): Promise<string> {
         try {
             const { remnawave: _remnawave, ...templateConfig } = yamlConfig;
@@ -599,24 +633,30 @@ export class MihomoGeneratorService {
                         ? (yamlConfig.proxies as ProxyNode[])
                         : []),
                     ...data.proxies,
+                    ...injection.proxies,
                 ],
-                'proxy-groups': sourceGroups.map((group) => {
-                    const remnawaveCustom = group.remnawave as Record<string, unknown> | undefined;
-                    const { remnawave: _remnawave, ...restGroup } = group;
-                    const cleanGroup = remnawaveCustom ? restGroup : group;
+                'proxy-groups': [
+                    ...sourceGroups.map((group) => {
+                        const remnawaveCustom = group.remnawave as
+                            | Record<string, unknown>
+                            | undefined;
+                        const { remnawave: _remnawave, ...restGroup } = group;
+                        const cleanGroup = remnawaveCustom ? restGroup : group;
 
-                    const remarks = this.resolveGroupRemarks(remnawaveCustom, proxyRemarks);
+                        const remarks = this.resolveGroupRemarks(remnawaveCustom, proxyRemarks);
 
-                    return {
-                        ...cleanGroup,
-                        proxies: [
-                            ...(Array.isArray(cleanGroup.proxies)
-                                ? (cleanGroup.proxies as string[])
-                                : []),
-                            ...remarks,
-                        ],
-                    };
-                }),
+                        return {
+                            ...cleanGroup,
+                            proxies: [
+                                ...(Array.isArray(cleanGroup.proxies)
+                                    ? (cleanGroup.proxies as string[])
+                                    : []),
+                                ...remarks,
+                            ],
+                        };
+                    }),
+                    ...injection.groups,
+                ],
             };
 
             const providers = this.buildProxyProviders(yamlConfig, data);

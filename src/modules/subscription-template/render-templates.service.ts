@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { USERS_STATUS } from '@libs/contracts/constants';
+
+import { TopologySubscriptionService } from '@modules/topologies/topology-subscription.service';
+
 import { SUBSCRIPTION_CONFIG_TYPES } from './constants/config-types';
 import { ClashGeneratorService } from './generators/clash.generator.service';
 import { MihomoGeneratorService } from './generators/mihomo.generator.service';
@@ -22,6 +26,7 @@ export class RenderTemplatesService {
         private readonly xrayGeneratorService: XrayGeneratorService,
         private readonly singBoxGeneratorService: SingBoxGeneratorService,
         private readonly xrayJsonGeneratorService: XrayJsonGeneratorService,
+        private readonly topologySubscriptions: TopologySubscriptionService,
     ) {}
 
     public async generateSubscription(params: IGenerateSubscription): Promise<{
@@ -38,6 +43,11 @@ export class RenderTemplatesService {
             fallbackOptions,
             excludeHostsByTags: srrContext.excludeHostsByTags,
         });
+        const topologies =
+            user.status === USERS_STATUS.ACTIVE &&
+            ['MIHOMO', 'SINGBOX'].includes(srrContext.matchedResponseType)
+                ? await this.topologySubscriptions.resolve(formattedHosts)
+                : [];
 
         switch (srrContext.matchedResponseType) {
             case 'XRAY_BASE64':
@@ -66,6 +76,7 @@ export class RenderTemplatesService {
                         false,
                         srrContext.isExtendedClient,
                         srrContext.overrideTemplateName,
+                        topologies,
                     ),
                     contentType: SUBSCRIPTION_CONFIG_TYPES['MIHOMO'].CONTENT_TYPE,
                 };
@@ -75,6 +86,7 @@ export class RenderTemplatesService {
                     subscription: await this.singBoxGeneratorService.generateConfig(
                         formattedHosts,
                         srrContext.overrideTemplateName,
+                        topologies,
                     ),
                     contentType: SUBSCRIPTION_CONFIG_TYPES['SINGBOX'].CONTENT_TYPE,
                 };

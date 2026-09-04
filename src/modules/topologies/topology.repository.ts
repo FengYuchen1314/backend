@@ -18,6 +18,7 @@ const StoredTopologyEnvelopeSchema = z.object({
     kind: z.literal(INTERNAL_TOPOLOGY_TEMPLATE_TYPE),
     schemaVersion: z.literal(1),
     version: z.int().positive(),
+    isPublished: z.boolean().default(false),
     graph: TopologyGraphSchema,
 });
 
@@ -99,8 +100,9 @@ export class TopologyRepository {
         expectedVersion: number,
         name: string,
         graph: TTopologyGraph,
+        isPublished = false,
     ): Promise<null | TopologyRecord> {
-        const envelope = this.createEnvelope(expectedVersion + 1, graph);
+        const envelope = this.createEnvelope(expectedVersion + 1, graph, isPublished);
         const serializedEnvelope = JSON.stringify(envelope);
 
         const rows = await this.prisma.tx.$queryRaw<TopologyRow[]>(Prisma.sql`
@@ -133,14 +135,17 @@ export class TopologyRepository {
         return rows.length === 1;
     }
 
-    public async getReferenceSnapshot(graph: TTopologyGraph): Promise<TopologyReferenceSnapshot> {
+    public async getReferenceSnapshot(
+        graph: TTopologyGraph,
+        enabledOnly = false,
+    ): Promise<TopologyReferenceSnapshot> {
         const proxyNodes = graph.nodes.filter((node) => node.kind === 'PROXY');
         const hostUuids = [...new Set(proxyNodes.map((node) => node.hostUuid))];
         const nodeUuids = [...new Set(proxyNodes.map((node) => node.nodeUuid))];
 
         const [nodes, hosts] = await Promise.all([
             this.prisma.tx.nodes.findMany({
-                where: { uuid: { in: nodeUuids } },
+                where: { uuid: { in: nodeUuids }, ...(enabledOnly ? { isDisabled: false } : {}) },
                 select: { uuid: true },
             }),
             this.prisma.tx.hosts.findMany({
@@ -176,8 +181,13 @@ export class TopologyRepository {
         };
     }
 
-    private createEnvelope(version: number, graph: TTopologyGraph): StoredTopologyEnvelope {
+    private createEnvelope(
+        version: number,
+        graph: TTopologyGraph,
+        isPublished = false,
+    ): StoredTopologyEnvelope {
         return {
+            isPublished,
             kind: INTERNAL_TOPOLOGY_TEMPLATE_TYPE,
             schemaVersion: 1,
             version,
@@ -191,6 +201,7 @@ export class TopologyRepository {
             uuid: row.uuid,
             name: row.name,
             version: envelope.version,
+            isPublished: envelope.isPublished,
             graph: envelope.graph,
             createdAt: row.createdAt.toISOString(),
             updatedAt: row.updatedAt.toISOString(),

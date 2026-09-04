@@ -13,6 +13,7 @@ export interface TopologyReferenceSnapshot {
 }
 
 export interface StoredTopologyEnvelope {
+    isPublished: boolean;
     graph: TTopologyGraph;
     kind: 'XBOARD_TOPOLOGY';
     schemaVersion: 1;

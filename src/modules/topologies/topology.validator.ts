@@ -15,6 +15,7 @@ export class TopologyValidator {
     public validate(
         graph: TTopologyGraph,
         references: TopologyReferenceSnapshot,
+        requireUniqueHostNodeBinding = false,
     ): TTopologyValidationResult {
         const issues: TTopologyIssue[] = [];
         const issueKeys = new Set<string>();
@@ -273,6 +274,14 @@ export class TopologyValidator {
                 addIssue({
                     code: 'HOST_INBOUND_NOT_ACTIVE_ON_NODE',
                     message: 'The host inbound is not active on the selected physical node.',
+                    nodeIds: [proxy.id],
+                });
+            }
+            if (requireUniqueHostNodeBinding && host.nodeUuids.size !== 1) {
+                addIssue({
+                    code: 'HOST_ENDPOINT_AMBIGUOUS',
+                    message:
+                        'To publish a topology, each Host must be assigned to exactly one server. Create a separate Host for each server endpoint; a shared Host address cannot select a physical server.',
                     nodeIds: [proxy.id],
                 });
             }

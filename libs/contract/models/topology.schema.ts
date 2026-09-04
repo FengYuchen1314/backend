@@ -65,6 +65,7 @@ export const TopologySchema = z.object({
     uuid: z.uuid(),
     name: z.string().min(2).max(100),
     version: z.int().positive(),
+    isPublished: z.boolean().default(false),
     graph: TopologyGraphSchema,
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
