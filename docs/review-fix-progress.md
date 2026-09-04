@@ -5,8 +5,8 @@ finish the original eight requirements. The active remediation objective is not 
 
 ## Branches and verification
 
-- Backend: wip/shared-443-backend, functional checkpoint afab00ff.
-- Frontend: wip/shared-443-ui, checkpoint f9db2164 (based on 07c0a579).
+- Backend: wip/shared-443-backend, functional checkpoint 88fcdb69.
+- Frontend: wip/shared-443-ui, checkpoint 74acd0f3.
 - Node: wip/shared-443-node, checkpoint d7a4fd7.
 - Published/tested Mieru Node image: fbf271d, digest
   sha256:80e27e701376c14e04aba349bebb8c8d23ee0c7a9feca5442ed27223c7af090e.
@@ -28,9 +28,21 @@ Frontend f9db2164 passed local typecheck, changed-file lint and 22 existing test
 Full upstream lint still reports unrelated existing React rules; CI checks changed files.
 The new interface has not yet had browser acceptance.
 
-[Paired build](https://github.com/FengYuchen1314/backend/actions/runs/33915931367) was explicitly
-requested for backend afab00ff + frontend f9db2164. Its validation and exact-contract frontend build
-passed; inspect the final Docker build outcome before claiming image success.
+[Previous paired build](https://github.com/FengYuchen1314/backend/actions/runs/33915931367) passed
+for backend afab00ff + frontend f9db2164, including the final Docker build. That image does not
+include the newer topology publication work.
+
+Backend 88fcdb69 passed [CI](https://github.com/FengYuchen1314/backend/actions/runs/33919053163):
+68 existing tests, 8 new subscription/publication tests, 5 edge-settings tests, PostgreSQL topology
+publication concurrency/defaulting, 9 native-client scenarios and the same 9 scenarios using the
+Actions-compiled portable test bundle. Backend compilation and OpenAPI dependency wiring passed.
+Frontend 74acd0f3 passed [CI](https://github.com/FengYuchen1314/frontend/actions/runs/33918719374),
+including its 22 tests and production build. Browser acceptance is still outstanding.
+
+The [new exact paired image build](https://github.com/FengYuchen1314/backend/actions/runs/33919348040)
+targets backend 88fcdb69 + frontend 74acd0f3. Validation and the paired frontend build passed;
+the final multi-architecture Docker build was still running at this checkpoint. Check its final
+outcome before claiming success. WIP tags are not published.
 
 ## Implemented connections
 
@@ -57,6 +69,16 @@ passed; inspect the final Docker build outcome before claiming image success.
   drafts and separates saving from applying; a queued restart is not runtime success.
 - Prior fixes remain: topology draft revisions do not advance with background refresh; chain
   direction and many-to-one branch membership corrected; Mieru edit fields follow watched values.
+- Explicit publication now feeds authorized complete graphs into the normal Mihomo/sing-box
+  subscription generators. New/legacy graphs stay drafts, ordinary nodes are not mutated, private
+  clone tags prevent cross-graph collisions, and unsupported members/strategies omit the full graph.
+  Published Hosts require unique enabled physical-Node bindings. Revision-locked publication is
+  tested against PostgreSQL, including eight concurrent writers and stale unpublish/delete attempts.
+- Real authenticated TCP tests verify Mihomo two-hop chains and round-robin entrances sharing one
+  exit, plus sing-box two-hop chains. Health probes use an independent isolated fixture; blocked
+  default probes had marked both entrances dead and caused first-member fallback. Also fixed a
+  test-fixture FIN race that could truncate healthy HTTP responses. Each scenario now runs three
+  times and requires eight real requests. See subscription-topology-publication.md.
 - Paired builds compile a pinned frontend against the exact backend contract. OpenAPI generation
   checks module/guard wiring. URL types and missing CqrsModule imports were fixed.
 
@@ -77,14 +99,31 @@ PDF services and /opt/pdfmathtranslate-next were not modified. The web endpoint 
 and both PDF containers remained healthy. Old proxy/MMW services were not removed. Completed test
 scripts remove their disposable containers; private test files remain for diagnosis.
 
+The Actions acceptance artifact for backend 88fcdb69 was additionally run on this VPS at
+2026-09-04 21:06 UTC (2026-09-05 05:06 Asia/Shanghai). Its archive SHA-256 was verified locally
+and again remotely:
+`212ed676ab8b4ce807ba89821c2761134be49911c5407f067799be0d817e6fde`.
+All 9 native-client topology tests passed (3 scenarios × 3 repetitions, 8 requests each).
+The bundle is retained at `/opt/xboard-topology-test.3RuPbolm`; its disposable container was removed.
+It used the existing backend runtime image digest
+`sha256:f1591532bdfd3c3ecf38cf098b78946c8de2224001070e91584e22de6bba5bd3` (runtime base 91b5167)
+only for Node/dependencies, with the new generator/compiler code from the 88fcdb69 test bundle.
+No panel process/database was started. Networking was limited to container loopback, with no host
+ports or Docker socket. Afterwards both PDF containers remained healthy and HTTP 38100 returned 200.
+
 ## Still required
 
-- AnyTLS + ShadowTLS runtime, managed creation, subscriptions and shared-443 integration.
+- AnyTLS + ShadowTLS runtime, managed creation, subscriptions and shared-443 integration. Source
+  inspection found that the upstream inline Mihomo combination replaces ordinary TLS with
+  ShadowTLS, which does not encrypt payloads. Preserve real inner encryption and verify it before
+  exposing this option; see anytls-shadowtls-investigation.md. Connectivity alone is insufficient.
 - Deliver every Agent artifact/image through the panel instead of direct registry/download access.
 - Full panel/API/Agent/browser acceptance for reverse-proxy management, actual shared-443 Xray
   traffic, public certificate issuance, restarts and recovery. See node-edge-settings.md.
-- Activate saved topologies in real subscriptions, preserve client-format semantics, enforce exact
-  host/physical-node ownership and test chains/load balancing using actual clients.
+- Full panel/browser acceptance of topology publication, actual multi-physical-host traffic and
+  supported protocol-pair interoperability beyond the authenticated SOCKS5 TCP acceptance fixtures.
+  Xray JSON/Base64/Clash/Stash graph output remains explicitly unsupported; sing-box does not
+  silently emulate round-robin or consistent-hash semantics.
 - Expand three individual discovery seeds per region into the requested distinct domain pools.
   The user has **no mainland probe machine/interface**. Keep candidates unverified and verified
   automatic selection unavailable. Do not claim GFW reachability from overseas VPS evidence.
