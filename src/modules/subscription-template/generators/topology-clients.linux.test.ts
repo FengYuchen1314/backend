@@ -194,6 +194,12 @@ for (const scenario of [
             const echo = http.createServer((_request, response) => response.end('topology-ok'));
             const targetPort = await listen(echo);
             allowedPorts.add(targetPort);
+            const health = http.createServer((_request, response) => {
+                response.writeHead(204);
+                response.end();
+            });
+            const healthPort = await listen(health);
+            allowedPorts.add(healthPort);
             const fixtures: Awaited<ReturnType<typeof socksFixture>>[] = [];
             let child: ChildProcess | undefined;
             let logs = '';
@@ -201,6 +207,12 @@ for (const scenario of [
                 for (let n = 1; n <= (scenario.balanced ? 3 : 2); n++)
                     fixtures.push(await socksFixture(n, allowedPorts));
                 const item = bound(scenario.balanced);
+                for (const node of item.topology.graph.nodes) {
+                    if (node.kind === 'LOAD_BALANCER') {
+                        node.testUrl = 'https://health.example.invalid/generate_204';
+                        node.intervalSeconds = 300;
+                    }
+                }
                 fixtures.forEach((fixture, index) => {
                     item.hosts.get(id(index + 1))!.port = fixture.port;
                 });
@@ -251,8 +263,18 @@ for (const scenario of [
                 const config: any = scenario.format === 'MIHOMO' ? load(text) : JSON.parse(text);
                 // Selecting the published virtual node is a client action, not a server-side default change.
                 const entry = `${item.topology.name} [${item.topology.uuid}]`;
-                if (scenario.format === 'MIHOMO') config.rules = [`MATCH,${entry}`];
-                else config.route.final = entry;
+                if (scenario.format === 'MIHOMO') {
+                    config.rules = [`MATCH,${entry}`];
+                    for (const group of config['proxy-groups']) {
+                        if (group.type === 'load-balance') {
+                            assert.equal(group.url, 'https://health.example.invalid/generate_204');
+                            // Only substitute the health-check destination with this isolated fixture.
+                            // Blocking the default public URL marks BOTH entries dead and causes
+                            // Mihomo's fallback-to-first behavior, which is not a balancing test.
+                            group.url = `http://127.0.0.1:${healthPort}/generate_204`;
+                        }
+                    }
+                } else config.route.final = entry;
                 const configPath = path.join(
                     directory,
                     scenario.format === 'MIHOMO' ? 'config.yaml' : 'config.json',
@@ -282,18 +304,35 @@ for (const scenario of [
                     logs += chunk.toString();
                 });
                 await waitForPort(clientPort, child);
+                if (scenario.balanced) {
+                    for (
+                        let attempt = 0;
+                        attempt < 100 &&
+                        !fixtures
+                            .slice(0, 2)
+                            .every((fixture) => fixture.connections.includes(healthPort));
+                        attempt++
+                    )
+                        await delay(20);
+                    assert.ok(
+                        fixtures
+                            .slice(0, 2)
+                            .every((fixture) => fixture.connections.includes(healthPort)),
+                        'Both entries must pass a real health probe',
+                    );
+                }
                 for (let request = 0; request < 8; request++)
                     assert.equal(await requestThrough(clientPort, targetPort), 'topology-ok');
                 if (scenario.balanced) {
-                    assert.ok(fixtures[0].connections.length > 0, 'Entry A must carry traffic');
-                    assert.ok(fixtures[1].connections.length > 0, 'Entry B must carry traffic');
-                    assert.equal(
-                        fixtures[0].connections.length + fixtures[1].connections.length,
-                        8,
+                    const dataConnections = fixtures.map((fixture) =>
+                        fixture.connections.filter((port) => port !== healthPort),
                     );
-                    for (const port of [...fixtures[0].connections, ...fixtures[1].connections])
+                    assert.ok(dataConnections[0].length > 0, 'Entry A must carry traffic');
+                    assert.ok(dataConnections[1].length > 0, 'Entry B must carry traffic');
+                    assert.equal(dataConnections[0].length + dataConnections[1].length, 8);
+                    for (const port of [...dataConnections[0], ...dataConnections[1]])
                         assert.equal(port, fixtures[2].port);
-                    assert.deepEqual(fixtures[2].connections, Array(8).fill(targetPort));
+                    assert.deepEqual(dataConnections[2], Array(8).fill(targetPort));
                 } else {
                     assert.deepEqual(fixtures[0].connections, Array(8).fill(fixtures[1].port));
                     assert.deepEqual(fixtures[1].connections, Array(8).fill(targetPort));
@@ -305,6 +344,8 @@ for (const scenario of [
                 for (const fixture of fixtures) await fixture.close();
                 echo.closeAllConnections();
                 await new Promise<void>((resolve) => echo.close(() => resolve()));
+                health.closeAllConnections();
+                await new Promise<void>((resolve) => health.close(() => resolve()));
                 // Exact mkdtemp result, never a caller-provided directory or workspace.
                 assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));
                 assert.ok(path.basename(directory).startsWith('rw-topology-client-'));

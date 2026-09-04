@@ -95,17 +95,30 @@ export class TopologyCompiler {
                     proxies: members.map((node) => node.label),
                     xboard: { graphNodeId: group.id, role: 'LOAD_BALANCER' },
                 };
+                const healthCheck = {
+                    url: group.testUrl ?? DEFAULT_TEST_URL,
+                    interval: group.intervalSeconds ?? DEFAULT_TEST_INTERVAL_SECONDS,
+                };
                 switch (group.strategy) {
                     case 'ROUND_ROBIN':
-                        return { ...common, type: 'load-balance', strategy: 'round-robin' };
+                        return {
+                            ...common,
+                            ...healthCheck,
+                            type: 'load-balance',
+                            strategy: 'round-robin',
+                        };
                     case 'CONSISTENT_HASH':
-                        return { ...common, type: 'load-balance', strategy: 'consistent-hashing' };
+                        return {
+                            ...common,
+                            ...healthCheck,
+                            type: 'load-balance',
+                            strategy: 'consistent-hashing',
+                        };
                     case 'URL_TEST':
                         return {
                             ...common,
+                            ...healthCheck,
                             type: 'url-test',
-                            url: group.testUrl ?? DEFAULT_TEST_URL,
-                            interval: group.intervalSeconds ?? DEFAULT_TEST_INTERVAL_SECONDS,
                         };
                     case 'SELECTOR':
                         return { ...common, type: 'select' };

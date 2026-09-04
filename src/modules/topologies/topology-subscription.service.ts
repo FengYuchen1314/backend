@@ -24,6 +24,18 @@ export class TopologySubscriptionService {
     async resolve(
         authorizedHosts: readonly ResolvedProxyConfig[],
     ): Promise<BoundSubscriptionTopology[]> {
+        try {
+            return await this.resolvePublished(authorizedHosts);
+        } catch {
+            // An unavailable/malformed optional graph must not erase ordinary subscriptions.
+            this.logger.error('Unable to resolve published topologies; all composites omitted.');
+            return [];
+        }
+    }
+
+    private async resolvePublished(
+        authorizedHosts: readonly ResolvedProxyConfig[],
+    ): Promise<BoundSubscriptionTopology[]> {
         const byHost = new Map(
             authorizedHosts
                 .filter((host) => !host.metadata.isDisabled)

@@ -112,6 +112,18 @@ test('publication updates are explicit, revision-locked and retained when editin
     assert.equal(writes[2][4], false);
 });
 
+test('an unreadable optional topology omits composites without failing the ordinary subscription', async () => {
+    const service = new TopologySubscriptionService(
+        {
+            findAll: async () => {
+                throw new Error('simulated unavailable topology store');
+            },
+        } as never,
+        new TopologyValidator(),
+    );
+    assert.deepEqual(await service.resolve([proxy(1)]), []);
+});
+
 test('normal subscription entry point includes published topologies only for active supported clients', async () => {
     let resolutions = 0;
     const hosts = [proxy(1), proxy(2)];
