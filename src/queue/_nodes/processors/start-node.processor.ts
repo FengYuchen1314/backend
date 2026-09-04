@@ -304,6 +304,7 @@ export class StartNodeProcessor extends WorkerHost {
                             effectiveXrayConfig,
                             node.activeInbounds,
                             edgeSettingsResult.response,
+                            node.address,
                         );
                         effectiveXrayConfig = preparedEdge.config;
                         edgePlan = preparedEdge.plan;

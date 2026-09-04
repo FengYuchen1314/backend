@@ -236,10 +236,12 @@ cat >"\${INSTALL_DIR}/edge/Caddyfile" <<'XBOARD_EDGE_CADDY'
 }
 
 http://127.0.0.1:18080 {
+    bind 127.0.0.1
     respond "Xboard edge is not configured" 404
 }
 
 http://127.0.0.1:18443 {
+    bind 127.0.0.1
     respond "Xboard edge is not configured" 404
 }
 XBOARD_EDGE_CADDY

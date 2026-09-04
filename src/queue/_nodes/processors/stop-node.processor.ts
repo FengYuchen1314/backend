@@ -1,3 +1,4 @@
+import { SERVER_TYPES } from '@contract/constants';
 import { Job } from 'bullmq';
 
 import { Processor, WorkerHost } from '@nestjs/bullmq';
@@ -50,15 +51,26 @@ export class StopNodeProcessor extends WorkerHost {
                 proxyUrl: result.response.proxyUrl,
             };
             const isMieruRuntime =
-                result.response.activeInbounds.length > 0 &&
-                result.response.activeInbounds.every(
-                    (inbound) => inbound.type.toLowerCase() === 'mieru',
-                );
+                result.response.serverType === SERVER_TYPES.LEASED_LINE ||
+                (result.response.activeInbounds.length > 0 &&
+                    result.response.activeInbounds.every(
+                        (inbound) => inbound.type.toLowerCase() === 'mieru',
+                    ));
 
-            if (isMieruRuntime) {
-                await this.axios.stopMieru(connection);
-            } else {
-                await this.axios.stopXray(connection);
+            const stopped = isMieruRuntime
+                ? await this.axios.stopMieru(connection)
+                : await this.axios.stopXray(connection);
+            if (!stopped.isOk || !stopped.response.isStopped) {
+                await this.commandBus.execute(
+                    new UpdateNodeCommand({
+                        uuid: result.response.uuid,
+                        lastStatusMessage: stopped.isOk
+                            ? 'The node runtime did not confirm that it stopped.'
+                            : 'Failed to contact the node to stop its runtime.',
+                        lastStatusChange: new Date(),
+                    }),
+                );
+                return false;
             }
 
             // TODO: disable plugins?

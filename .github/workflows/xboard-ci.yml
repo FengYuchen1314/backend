@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - xboard-dev
+      - 'wip/**'
+      - xboard-topology-backend
   pull_request:
 permissions:
   contents: read

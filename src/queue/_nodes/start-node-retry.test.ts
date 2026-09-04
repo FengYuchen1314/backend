@@ -4,6 +4,84 @@ import { test } from 'node:test';
 
 import { NodesQueuesService } from './nodes-queues.service';
 import { RetryableStartNodeBusyError, StartNodeProcessor } from './processors/start-node.processor';
+import { StopNodeProcessor } from './processors/stop-node.processor';
+
+test('stopping a leased-line node after its profile was removed still stops Mieru', async () => {
+    const calls: string[] = [];
+    const processor = new StopNodeProcessor(
+        {
+            async stopMieru() {
+                calls.push('mieru');
+                return { isOk: true, response: { isStopped: true } };
+            },
+            async stopXray() {
+                calls.push('xray');
+                return { isOk: true, response: { isStopped: true } };
+            },
+        } as never,
+        {
+            async execute() {
+                return {
+                    isOk: true,
+                    response: {
+                        uuid: 'node-1',
+                        serverType: 'LEASED_LINE',
+                        activeInbounds: [],
+                        address: 'node.example.com',
+                        port: 2222,
+                    },
+                };
+            },
+        } as never,
+        {
+            async execute() {
+                calls.push('disabled');
+            },
+        } as never,
+    );
+    assert.equal(
+        await processor.process({
+            data: { nodeUuid: 'node-1', isNeedToBeDeleted: false },
+        } as never),
+        true,
+    );
+    assert.deepEqual(calls, ['mieru', 'disabled']);
+});
+
+test('failed stops are reported rather than claimed as successful', async () => {
+    for (const stopResult of [{ isOk: false }, { isOk: true, response: { isStopped: false } }]) {
+        const updates: object[] = [];
+        const processor = new StopNodeProcessor(
+            {
+                async stopMieru() {
+                    return stopResult;
+                },
+            } as never,
+            {
+                async execute() {
+                    return {
+                        isOk: true,
+                        response: { uuid: 'node-1', serverType: 'LEASED_LINE', activeInbounds: [] },
+                    };
+                },
+            } as never,
+            {
+                async execute(command: object) {
+                    updates.push(command);
+                },
+            } as never,
+        );
+        assert.equal(
+            await processor.process({
+                data: { nodeUuid: 'node-1', isNeedToBeDeleted: false },
+            } as never),
+            false,
+        );
+        assert.equal(updates.length, 1);
+        assert.doesNotMatch(JSON.stringify(updates), /"isDisabled":true/);
+        assert.match(JSON.stringify(updates), /lastStatusMessage/);
+    }
+});
 
 const buildQueuesService = (startNodeQueue: object) =>
     new NodesQueuesService(

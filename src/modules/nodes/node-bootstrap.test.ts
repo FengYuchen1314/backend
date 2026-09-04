@@ -113,6 +113,8 @@ test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars'
     assert.match(script, /127\.0\.0\.1:18080/);
     assert.match(script, /127\.0\.0\.1:18443/);
     assert.match(script, /admin 127\.0\.0\.1:2019/);
+    assert.match(script, /http:\/\/127\.0\.0\.1:18080 \{\n    bind 127\.0\.0\.1/);
+    assert.match(script, /http:\/\/127\.0\.0\.1:18443 \{\n    bind 127\.0\.0\.1/);
     assert.match(script, /\.\/edge:\/var\/lib\/remnanode\/edge/);
     assert.match(script, /edge-run:\/var\/run\/xboard-edge/g);
 });

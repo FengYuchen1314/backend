@@ -1,15 +1,22 @@
 name: Build Xboard Backend Image
 
 on:
+  workflow_dispatch:
+    inputs:
+      frontend_commit:
+        description: 'Optional exact frontend commit (default: resolve xboard-dev once)'
+        required: false
+        type: string
   push:
     branches:
       - xboard-dev
+      - 'wip/**'
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: xboard-backend-image
+  group: xboard-backend-image-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -18,7 +25,7 @@ env:
 jobs:
   validate:
     name: Validate backend before publishing
-    if: github.repository == 'FengYuchen1314/backend' && github.ref == 'refs/heads/xboard-dev'
+    if: github.repository == 'FengYuchen1314/backend'
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -73,7 +80,7 @@ jobs:
 
   build:
     name: Build and publish test image
-    if: github.repository == 'FengYuchen1314/backend' && github.ref == 'refs/heads/xboard-dev'
+    if: github.repository == 'FengYuchen1314/backend'
     needs: validate
     permissions:
       contents: read
@@ -94,43 +101,55 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Log in to GHCR
+        if: github.ref == 'refs/heads/xboard-dev'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679fd # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Prepare build metadata
+      - name: Set up Node.js for the paired frontend build
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.20.0
+
+      - name: Build frontend against this exact backend contract
         id: metadata
         env:
-          GH_TOKEN: ${{ github.token }}
+          REQUESTED_FRONTEND_COMMIT: ${{ inputs.frontend_commit }}
         shell: bash
         run: |
-          release_json="$(gh api repos/FengYuchen1314/frontend/releases/tags/xboard-dev-build)"
-          release_target="$(jq -r '.target_commitish' <<<"$release_json")"
-          frontend_commit="$(gh api repos/FengYuchen1314/frontend/commits/xboard-dev --jq .sha)"
-          backend_contract_tree="$(git rev-parse HEAD:libs/contract)"
-          frontend_asset_name="remnawave-frontend-${frontend_commit}-${backend_contract_tree}.zip"
-          frontend_url="$(jq -r --arg name "$frontend_asset_name" '.assets[] | select(.name == $name) | .browser_download_url' <<<"$release_json")"
-          frontend_sha256="$(jq -r --arg name "$frontend_asset_name" '.assets[] | select(.name == $name) | .digest | sub("^sha256:"; "")' <<<"$release_json")"
-
-          if [[ -z "$frontend_url" || -z "$frontend_sha256" ]]; then
-            has_bound_assets="$(jq -r '[.assets[].name | test("^remnawave-frontend-[a-f0-9]{40}-[a-f0-9]{40}\\.zip$")] | any' <<<"$release_json")"
-            [[ "$has_bound_assets" == "false" ]]
-            [[ "$release_target" == "$frontend_commit" ]]
-            frontend_url="$(jq -r '.assets[] | select(.name == "remnawave-frontend.zip") | .browser_download_url' <<<"$release_json")"
-            frontend_sha256="$(jq -r '.assets[] | select(.name == "remnawave-frontend.zip") | .digest | sub("^sha256:"; "")' <<<"$release_json")"
+          frontend_dir="$RUNNER_TEMP/paired-frontend"
+          git clone --depth 1 --branch xboard-dev https://github.com/FengYuchen1314/frontend.git "$frontend_dir"
+          if [[ -n "$REQUESTED_FRONTEND_COMMIT" ]]; then
+            [[ "$REQUESTED_FRONTEND_COMMIT" =~ ^[a-f0-9]{40}$ ]]
+            git -C "$frontend_dir" fetch --depth 1 origin "$REQUESTED_FRONTEND_COMMIT"
+            git -C "$frontend_dir" checkout --detach "$REQUESTED_FRONTEND_COMMIT"
           fi
-
-          [[ "$frontend_url" == https://github.com/FengYuchen1314/frontend/releases/download/* ]]
-          [[ "$frontend_sha256" =~ ^[a-f0-9]{64}$ ]]
+          frontend_commit="$(git -C "$frontend_dir" rev-parse HEAD)"
           [[ "$frontend_commit" =~ ^[a-f0-9]{40}$ ]]
+          npm install --prefix libs/contract --no-audit --no-fund --no-package-lock --ignore-scripts
+          npm run --prefix libs/contract prepublish
+          contract_tarball="$(npm pack ./libs/contract --pack-destination "$RUNNER_TEMP" --silent)"
+          npm ci --prefix "$frontend_dir" --prefer-offline --no-audit --no-fund
+          npm install --prefix "$frontend_dir" --no-audit --no-fund --no-package-lock --no-save "$RUNNER_TEMP/$contract_tarball"
+          npm test --prefix "$frontend_dir"
+          npm run --prefix "$frontend_dir" start:build
+          mkdir .xboard-frontend
+          cp -a "$frontend_dir/dist/." .xboard-frontend/
 
           echo "version=$(jq -r .version package.json)-xboard" >> "$GITHUB_OUTPUT"
           echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-          echo "frontend_url=$frontend_url" >> "$GITHUB_OUTPUT"
-          echo "frontend_sha256=$frontend_sha256" >> "$GITHUB_OUTPUT"
           echo "frontend_commit=$frontend_commit" >> "$GITHUB_OUTPUT"
+          {
+            echo "image_tags<<TAGS"
+            echo "$IMAGE_NAME:backend-$GITHUB_SHA-frontend-$frontend_commit"
+            if [[ "$GITHUB_REF" == refs/heads/xboard-dev ]]; then
+              echo "$IMAGE_NAME:xboard-dev"
+            fi
+            echo "TAGS"
+          } >> "$GITHUB_OUTPUT"
+          echo "Paired backend $GITHUB_SHA with frontend $frontend_commit and contract $(git rev-parse HEAD:libs/contract)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build and push image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
@@ -138,15 +157,12 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:xboard-dev
-            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          push: ${{ github.ref == 'refs/heads/xboard-dev' }}
+          tags: ${{ steps.metadata.outputs.image_tags }}
           build-args: |
             BRANCH=xboard-dev
             SOURCE_REPOSITORY=https://github.com/FengYuchen1314/backend
-            FRONTEND_URL=${{ steps.metadata.outputs.frontend_url }}
-            FRONTEND_SHA256=${{ steps.metadata.outputs.frontend_sha256 }}
+            FRONTEND_SOURCE=local
             FRONTEND_COMMIT=${{ steps.metadata.outputs.frontend_commit }}
             __RW_METADATA_VERSION=${{ steps.metadata.outputs.version }}
             __RW_METADATA_GIT_BRANCH=xboard-dev

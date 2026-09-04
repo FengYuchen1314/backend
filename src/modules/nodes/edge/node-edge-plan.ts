@@ -12,7 +12,7 @@ import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 
 const INTERNAL_PORT_MIN = 12_000;
 const INTERNAL_PORT_MAX = 12_999;
-const RESERVED_INTERNAL_PORTS = new Set([18_080, 18_443, 20_19]);
+const RESERVED_INTERNAL_PORTS = new Set([80, 18_080, 18_443, 2_019]);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -45,8 +45,18 @@ export function prepareNodeEdge(
 
     const occupiedPorts = new Set<number>(RESERVED_INTERNAL_PORTS);
     for (const inbound of inbounds) {
-        const port = readOptionalInteger(inbound.port);
-        if (port !== null && port !== 443) occupiedPorts.add(port);
+        const ports = readPorts(inbound.port);
+        if (ports.includes(443) && ports.length !== 1) {
+            throw new Error(
+                `Inbound ${inbound.tag} must use a single port to share public port 443.`,
+            );
+        }
+        for (const port of ports) {
+            if (RESERVED_INTERNAL_PORTS.has(port)) {
+                throw new Error(`Inbound ${inbound.tag} uses reserved edge port ${port}.`);
+            }
+            if (port !== 443) occupiedPorts.add(port);
+        }
     }
 
     const tagBySni = new Map<string, string>();
@@ -59,7 +69,7 @@ export function prepareNodeEdge(
             throw new Error(`Active inbound ${activeInbound.tag} is missing from prepared config.`);
         }
 
-        const publicPort = readOptionalInteger(configInbound.port);
+        const publicPort = readPorts(configInbound.port)[0];
         if (publicPort !== 443) continue;
 
         const protocol = readString(
@@ -126,7 +136,7 @@ export function prepareNodeEdge(
     }
 
     for (const inbound of inbounds) {
-        if (readOptionalInteger(inbound.port) === 443) {
+        if (readPorts(inbound.port).includes(443)) {
             const tag = readString(inbound.tag, 'Xray inbound tag');
             if (!rewrittenTags.has(tag)) {
                 throw new Error(
@@ -258,8 +268,22 @@ function readString(value: unknown, label: string): string {
     return value;
 }
 
-function readOptionalInteger(value: unknown): number | null {
-    return typeof value === 'number' && Number.isInteger(value) ? value : null;
+function readPorts(value: unknown): number[] {
+    // Xray also accepts numeric strings, lists and ranges. Reserve every port,
+    // not only the first one, before assigning internal listeners.
+    if (value === undefined || value === null) return [];
+    const result: number[] = [];
+    const expression = typeof value === 'number' ? String(value) : value;
+    if (typeof expression !== 'string') throw new Error('Invalid inbound port.');
+    for (const item of expression.split(',')) {
+        const match = /^(\d+)(?:-(\d+))?$/.exec(item.trim());
+        if (!match) throw new Error('Invalid inbound port expression.');
+        const from = Number(match[1]);
+        const to = Number(match[2] ?? match[1]);
+        if (from < 1 || to > 65_535 || from > to) throw new Error('Invalid inbound port range.');
+        for (let port = from; port <= to; port++) result.push(port);
+    }
+    return result;
 }
 
 function isRecord(value: unknown): value is JsonRecord {

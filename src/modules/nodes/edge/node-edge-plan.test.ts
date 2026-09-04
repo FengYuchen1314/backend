@@ -8,6 +8,61 @@ import { prepareNodeEdge } from './node-edge-plan';
 const VISION_UUID = '11111111-1111-4111-8111-111111111111';
 const XHTTP_UUID = '22222222-2222-4222-8222-222222222222';
 
+test('numeric string 443 is rewritten and non-single shared ports are rejected', () => {
+    const inbound = realityInbound(VISION_UUID, 'VISION', 'raw', ['cover.example.com']);
+    const config = { ...inbound.config, port: '443' };
+    const result = prepareNodeEdge({ inbounds: [config] }, [inbound.entity], {});
+    assert.equal(result.plan.routes.length, 1);
+    assert.notEqual((result.config.inbounds as Array<{ port: number }>)[0].port, 443);
+    for (const port of ['442-444', '443,8443']) {
+        assert.throws(
+            () => prepareNodeEdge({ inbounds: [{ ...config, port }] }, [inbound.entity], {}),
+            /single port/,
+        );
+    }
+});
+
+test('reserved edge ports are rejected in numbers, strings, lists and ranges', () => {
+    for (const port of [80, '2019', '18079-18081', '1080,18443']) {
+        assert.throws(
+            () => prepareNodeEdge({ inbounds: [{ tag: 'OTHER', port }] }, [], {}),
+            /reserved edge port/,
+        );
+    }
+});
+
+test('IP upstreams cannot send requests back into the public edge listeners', () => {
+    for (const address of ['185.99.135.224', '[2001:db8::1]']) {
+        for (const scheme of ['http', 'https']) {
+            assert.throws(
+                () =>
+                    prepareNodeEdge(
+                        { inbounds: [] },
+                        [],
+                        {
+                            website: {
+                                domains: ['www.example.com'],
+                                upstream: `${scheme}://${address}`,
+                            },
+                        },
+                        address,
+                    ),
+                /reverse-proxy loop/,
+            );
+        }
+    }
+    assert.doesNotThrow(() =>
+        prepareNodeEdge(
+            { inbounds: [] },
+            [],
+            {
+                website: { domains: ['www.example.com'], upstream: 'http://185.99.135.224:8080' },
+            },
+            '185.99.135.224',
+        ),
+    );
+});
+
 function realityInbound(
     uuid: string,
     tag: string,

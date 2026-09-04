@@ -1,4 +1,6 @@
-FROM alpine:3.19 AS frontend
+ARG FRONTEND_SOURCE=download
+
+FROM alpine:3.19 AS frontend-download
 WORKDIR /opt/frontend
 
 ARG BRANCH=main
@@ -12,8 +14,18 @@ RUN apk add --no-cache curl unzip ca-certificates \
     && test -n "${FRONTEND_COMMIT}" \
     && curl --fail --location --proto '=https' --tlsv1.2 "${FRONTEND_URL}" -o frontend.zip \
     && if [ -n "${FRONTEND_SHA256}" ]; then echo "${FRONTEND_SHA256}  frontend.zip" | sha256sum -c -; fi \
-    && unzip frontend.zip -d frontend_temp \
-    && curl -L https://validator.remna.dev/wasm_exec.js -o frontend_temp/dist/assets/wasm_exec.js \
+    && unzip frontend.zip -d frontend_temp
+
+FROM alpine:3.19 AS frontend-local
+WORKDIR /opt/frontend
+COPY .xboard-frontend/ frontend_temp/dist/
+
+FROM frontend-${FRONTEND_SOURCE} AS frontend
+ARG SINGBOX_SCHEMA_URL=https://github.com/BlackDuty/sing-box-schema/releases/download/v1.13.13/schema.json
+ARG MIHOMO_SCHEMA_URL=https://github.com/dongchengjie/meta-json-schema/releases/download/v1.19.29/meta-json-schema.json
+RUN apk add --no-cache curl ca-certificates \
+    && test -s frontend_temp/dist/index.html \
+    && curl --fail -L https://validator.remna.dev/wasm_exec.js -o frontend_temp/dist/assets/wasm_exec.js \
     && curl -L https://validator.remna.dev/xray.schema.json -o frontend_temp/dist/assets/xray.schema.json \
     && curl -L https://validator.remna.dev/xray.schema.cn.json -o frontend_temp/dist/assets/xray.schema.cn.json \
     && curl -L ${SINGBOX_SCHEMA_URL} -o frontend_temp/dist/assets/singbox.schema.json \

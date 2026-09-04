@@ -353,8 +353,10 @@ export class AxiosService {
         });
     }
 
-    public async stopMieru(opts: INodeConnectionOpts): Promise<TResult<{ error: string | null }>> {
-        return this.request<{ response: { error: string | null } }>({
+    public async stopMieru(
+        opts: INodeConnectionOpts,
+    ): Promise<TResult<{ isStopped: boolean; error: string | null }>> {
+        return this.request<{ response: { isStopped: boolean; error: string | null } }>({
             label: 'STOP MIERU',
             path: MIERU_STOP_PATH,
             opts,
