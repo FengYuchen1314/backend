@@ -1,6 +1,9 @@
 name: Build Xboard Backend Image
 
 on:
+  push:
+    branches:
+      - xboard-dev
   workflow_dispatch:
 
 permissions:
