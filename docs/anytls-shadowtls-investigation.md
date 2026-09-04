@@ -107,5 +107,7 @@ Before exposing managed creation, complete:
   topology hops to the wrapper, never silently remove the inner TLS or expose wrapper-only nodes.
 - Certificate lifecycle, UI validation, user entitlements and full panel/API/Agent acceptance.
 
-The user's no-mainland-probe limitation continues to apply to camouflage domains. Foreign VPS
-tests are not evidence of mainland reachability or GFW bypass.
+The user has now offered one mainland VPS. Its SSH host key differs from the locally saved
+identity, so no probe has run pending independent identity confirmation. Foreign VPS tests are
+not evidence of mainland reachability or GFW bypass. A single mainland vantage point will still
+not establish nationwide availability or satisfy the existing two-distinct-ASN automatic gate.

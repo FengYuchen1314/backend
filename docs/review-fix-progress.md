@@ -157,8 +157,10 @@ part of that verified checksum. Hard-crash uncheckpointed accounting is not loss
   Xray JSON/Base64/Clash/Stash graph output remains explicitly unsupported; sing-box does not
   silently emulate round-robin or consistent-hash semantics.
 - Expand three individual discovery seeds per region into the requested distinct domain pools.
-  The user has **no mainland probe machine/interface**. Keep candidates unverified and verified
-  automatic selection unavailable. Do not claim GFW reachability from overseas VPS evidence.
+  The user has now offered one mainland VPS, but SSH found a changed host identity; no probe has
+  run pending independent confirmation. Keep candidates unverified and automatic selection
+  unavailable until evidence satisfies the policy. One probe network does not establish
+  nationwide reachability or satisfy the current two-distinct-ASN automatic gate.
 - Browser regressions for dirty topology refresh/save, cached Mieru initialization, and new
   reverse-proxy draft/revision controls.
 - Full panel database/API acceptance, final paired image build/publication and review of every
