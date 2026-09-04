@@ -92,7 +92,13 @@ test('leased-line installer adds a pinned Mita sidecar with a shared UDS volume'
 
     assert.match(script, /ghcr\.io\/enfein\/mita:v3\.36\.0@sha256:[a-f0-9]{64}/);
     assert.match(script, /MITA_UDS_PATH=\/var\/run\/mita\/mita\.sock/);
+    assert.match(script, /MIERU_ENABLED=true/);
+    assert.match(
+        script,
+        /MIERU_METRICS_BASELINE_PATH=\/var\/lib\/remnanode\/mieru-metrics-baselines\.json/,
+    );
     assert.match(script, /mita-run:\/var\/run\/mita/g);
+    assert.match(script, /remnanode-state:\/var\/lib\/remnanode/);
     assert.match(script, /\["CMD", "\/usr\/local\/bin\/mita", "status"\]/);
     assert.match(script, /condition: service_healthy/);
     assert.match(script, /mita-config:\/etc\/mita/);

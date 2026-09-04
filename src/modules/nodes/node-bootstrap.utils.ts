@@ -83,7 +83,9 @@ export function renderNodeBootstrapInstaller(
     }
 
     const usesMita = serverType === SERVER_TYPES.LEASED_LINE;
-    const mitaEnvironment = usesMita ? '\nMITA_UDS_PATH=/var/run/mita/mita.sock' : '';
+    const mitaEnvironment = usesMita
+        ? '\nMIERU_ENABLED=true\nMIERU_METRICS_BASELINE_PATH=/var/lib/remnanode/mieru-metrics-baselines.json\nMITA_UDS_PATH=/var/run/mita/mita.sock'
+        : '';
     const mitaService = usesMita
         ? `
   mita:
@@ -108,6 +110,7 @@ export function renderNodeBootstrapInstaller(
         ? `
     volumes:
       - mita-run:/var/run/mita
+      - remnanode-state:/var/lib/remnanode
     depends_on:
       mita:
         condition: service_healthy`
@@ -118,7 +121,8 @@ export function renderNodeBootstrapInstaller(
 volumes:
   mita-config:
   mita-data:
-  mita-run:`
+  mita-run:
+  remnanode-state:`
         : '';
 
     return `#!/usr/bin/env bash
