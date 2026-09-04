@@ -20,9 +20,14 @@ therefore remains unchanged.
 ## Graph direction
 
 Edges follow traffic direction. An entry may start one direct branch or multiple branches. A proxy
-has exactly one next hop. Multiple entry branches are load-balanced by dragging their last proxies
+has exactly one previous and next hop. Multiple entry branches are load-balanced by dragging their last proxies
 into the same `LOAD_BALANCER`; the group then has exactly one next hop. Every node must be on a path
 from the single entry to the single exit.
+
+Client dialer dependencies run against the drawn traffic direction: for `Entry -> A -> B -> Exit`,
+the selectable entry points to B and B uses A as its dialer. For `(A, B) -> Group -> C`, C uses Group,
+and Group contains the terminal proxies of the two incoming branches. Branches must merge through
+an explicit load balancer, not directly into a proxy or the exit.
 
 The backend rejects missing references, duplicate ids or edges, self-edges, directed cycles,
 disconnected nodes, host/physical-node ownership mismatches, inactive inbounds, duplicate proxy

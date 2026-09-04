@@ -61,8 +61,8 @@ export class TopologyCompiler {
     }
 
     private compileMihomo(graph: TTopologyGraph): Record<string, unknown> {
-        const { nodesById, outgoing, incoming, entry, proxies, groups } = this.indexGraph(graph);
-        const entryTarget = this.resolveEntryTarget(entry.id, groups, outgoing, nodesById);
+        const { nodesById, incoming, entry, exit, proxies, groups } = this.indexGraph(graph);
+        const entryTarget = this.singlePredecessor(exit.id, incoming, nodesById);
 
         const proxyBindings = proxies.map((proxy) => ({
             graphNodeId: proxy.id,
@@ -70,8 +70,8 @@ export class TopologyCompiler {
             selector: { hostUuid: proxy.hostUuid, nodeUuid: proxy.nodeUuid },
         }));
         const proxyPatches = proxies.flatMap((proxy) => {
-            const target = this.resolveProxyTarget(proxy.id, outgoing, nodesById);
-            if (target.kind === 'EXIT') return [];
+            const target = this.singlePredecessor(proxy.id, incoming, nodesById);
+            if (target.kind === 'ENTRY') return [];
             return [
                 {
                     graphNodeId: proxy.id,
@@ -89,13 +89,7 @@ export class TopologyCompiler {
                 xboard: { graphNodeId: entry.id, role: 'ENTRY' },
             },
             ...groups.map((group) => {
-                const members = this.resolveGroupMembers(
-                    group.id,
-                    entry.id,
-                    outgoing,
-                    incoming,
-                    nodesById,
-                );
+                const members = (incoming.get(group.id) ?? []).map((id) => nodesById.get(id)!);
                 const common = {
                     name: group.label,
                     proxies: members.map((node) => node.label),
@@ -130,8 +124,8 @@ export class TopologyCompiler {
     }
 
     private compileSingBox(graph: TTopologyGraph): Record<string, unknown> {
-        const { nodesById, outgoing, incoming, entry, proxies, groups } = this.indexGraph(graph);
-        const entryTarget = this.resolveEntryTarget(entry.id, groups, outgoing, nodesById);
+        const { nodesById, incoming, entry, exit, proxies, groups } = this.indexGraph(graph);
+        const entryTarget = this.singlePredecessor(exit.id, incoming, nodesById);
 
         const outboundBindings = proxies.map((proxy) => ({
             graphNodeId: proxy.id,
@@ -139,8 +133,8 @@ export class TopologyCompiler {
             selector: { hostUuid: proxy.hostUuid, nodeUuid: proxy.nodeUuid },
         }));
         const outboundPatches = proxies.flatMap((proxy) => {
-            const target = this.resolveProxyTarget(proxy.id, outgoing, nodesById);
-            if (target.kind === 'EXIT') return [];
+            const target = this.singlePredecessor(proxy.id, incoming, nodesById);
+            if (target.kind === 'ENTRY') return [];
             return [
                 {
                     graphNodeId: proxy.id,
@@ -160,13 +154,7 @@ export class TopologyCompiler {
             ...groups.map((group) => {
                 const common = {
                     tag: group.label,
-                    outbounds: this.resolveGroupMembers(
-                        group.id,
-                        entry.id,
-                        outgoing,
-                        incoming,
-                        nodesById,
-                    ).map((node) => node.label),
+                    outbounds: (incoming.get(group.id) ?? []).map((id) => nodesById.get(id)!.label),
                     xboard: { graphNodeId: group.id, role: 'LOAD_BALANCER' },
                 };
                 if (group.strategy === 'URL_TEST') {
@@ -193,94 +181,35 @@ export class TopologyCompiler {
 
     private indexGraph(graph: TTopologyGraph) {
         const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
-        const outgoing = new Map<string, string[]>();
         const incoming = new Map<string, string[]>();
         for (const edge of [...graph.edges].sort(
             (left, right) =>
                 (left.order ?? Number.MAX_SAFE_INTEGER) -
                     (right.order ?? Number.MAX_SAFE_INTEGER) || left.id.localeCompare(right.id),
         )) {
-            outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
             incoming.set(edge.target, [...(incoming.get(edge.target) ?? []), edge.source]);
         }
 
         return {
             nodesById,
-            outgoing,
             incoming,
             entry: graph.nodes.find((node) => node.kind === 'ENTRY')!,
+            exit: graph.nodes.find((node) => node.kind === 'EXIT')!,
             proxies: graph.nodes.filter((node) => node.kind === 'PROXY'),
             groups: graph.nodes.filter((node) => node.kind === 'LOAD_BALANCER'),
         };
     }
 
-    private resolveEntryTarget(
-        entryId: string,
-        groups: Extract<TTopologyGraphNode, { kind: 'LOAD_BALANCER' }>[],
-        outgoing: ReadonlyMap<string, string[]>,
-        nodesById: ReadonlyMap<string, TTopologyGraphNode>,
-    ): TTopologyGraphNode {
-        const branchRoots = outgoing.get(entryId) ?? [];
-        if (branchRoots.length === 1) return nodesById.get(branchRoots[0])!;
-
-        return groups.find((group) =>
-            branchRoots.every((root) =>
-                this.proxyBranchReachesGroup(root, group.id, outgoing, nodesById),
-            ),
-        )!;
-    }
-
-    private resolveGroupMembers(
-        groupId: string,
-        entryId: string,
-        outgoing: ReadonlyMap<string, string[]>,
+    private singlePredecessor(
+        nodeId: string,
         incoming: ReadonlyMap<string, string[]>,
         nodesById: ReadonlyMap<string, TTopologyGraphNode>,
-    ): TTopologyGraphNode[] {
-        const branchRoots = (outgoing.get(entryId) ?? []).filter((root) =>
-            this.proxyBranchReachesGroup(root, groupId, outgoing, nodesById),
-        );
-        const memberIds = branchRoots.length >= 2 ? branchRoots : (incoming.get(groupId) ?? []);
-        return memberIds.map((id) => nodesById.get(id)!);
-    }
-
-    private proxyBranchReachesGroup(
-        rootId: string,
-        groupId: string,
-        outgoing: ReadonlyMap<string, string[]>,
-        nodesById: ReadonlyMap<string, TTopologyGraphNode>,
-    ): boolean {
-        let currentId = rootId;
-        const visited = new Set<string>();
-        while (!visited.has(currentId)) {
-            visited.add(currentId);
-            const current = nodesById.get(currentId);
-            if (current?.kind !== 'PROXY') return false;
-            const nextId = outgoing.get(currentId)?.[0];
-            if (!nextId) return false;
-            if (nextId === groupId) return true;
-            if (nodesById.get(nextId)?.kind !== 'PROXY') return false;
-            currentId = nextId;
-        }
-        return false;
-    }
-
-    private resolveProxyTarget(
-        proxyId: string,
-        outgoing: ReadonlyMap<string, string[]>,
-        nodesById: ReadonlyMap<string, TTopologyGraphNode>,
     ): TTopologyGraphNode {
-        const target = this.singleTarget(proxyId, outgoing, nodesById);
-        return target.kind === 'LOAD_BALANCER'
-            ? this.singleTarget(target.id, outgoing, nodesById)
-            : target;
-    }
-
-    private singleTarget(
-        sourceId: string,
-        outgoing: ReadonlyMap<string, string[]>,
-        nodesById: ReadonlyMap<string, TTopologyGraphNode>,
-    ): TTopologyGraphNode {
-        return nodesById.get(outgoing.get(sourceId)![0])!;
+        // A dialer/detour is the transport used to REACH this proxy. Thus the
+        // dependency points against traffic direction, and entry selects the exit hop.
+        const sources = incoming.get(nodeId) ?? [];
+        if (sources.length !== 1)
+            throw new Error('Ambiguous topology: use an explicit load balancer.');
+        return nodesById.get(sources[0])!;
     }
 }

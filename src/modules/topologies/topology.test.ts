@@ -236,16 +236,18 @@ describe('TopologyCompiler', () => {
 
         const groups = result.artifact['proxy-groups'] as Array<Record<string, unknown>>;
         const entry = groups.find((group) => group.name === 'Balanced entry')!;
-        assert.deepEqual(entry.proxies, ['Fastest ingress']);
+        assert.deepEqual(entry.proxies, ['Frankfurt']);
         const loadBalancer = groups.find((group) => group.name === 'Fastest ingress')!;
         assert.deepEqual(loadBalancer.proxies, ['Los Angeles', 'Tokyo']);
         assert.equal(loadBalancer.type, 'load-balance');
 
         const patches = result.artifact.proxyPatches as Array<Record<string, unknown>>;
-        assert.equal(patches.length, 2);
+        assert.equal(patches.length, 1);
+        assert.equal(patches[0].graphNodeId, IDS.c);
         assert.ok(
             patches.every(
-                (patch) => (patch.set as Record<string, unknown>)['dialer-proxy'] === 'Frankfurt',
+                (patch) =>
+                    (patch.set as Record<string, unknown>)['dialer-proxy'] === 'Fastest ingress',
             ),
         );
     });
@@ -260,9 +262,49 @@ describe('TopologyCompiler', () => {
         assert.equal(urltest.type, 'urltest');
         assert.deepEqual(urltest.outbounds, ['Los Angeles', 'Tokyo']);
         const patches = result.artifact.outboundPatches as Array<Record<string, unknown>>;
+        assert.equal(patches.length, 1);
+        assert.equal(patches[0].graphNodeId, IDS.c);
         assert.ok(
-            patches.every((patch) => (patch.set as Record<string, unknown>).detour === 'Frankfurt'),
+            patches.every(
+                (patch) => (patch.set as Record<string, unknown>).detour === 'Fastest ingress',
+            ),
         );
+    });
+
+    it('preserves the actual first-to-last traffic order in both client formats', () => {
+        for (const format of ['MIHOMO', 'SINGBOX'] as const) {
+            const result = compiler.compile(linearGraph(), format);
+            assert.equal(result.status, 'SUPPORTED');
+            if (result.status !== 'SUPPORTED') continue;
+            const mihomo = format === 'MIHOMO';
+            const bindings = result.artifact[
+                mihomo ? 'proxyBindings' : 'outboundBindings'
+            ] as Array<{ graphNodeId: string; tag: string }>;
+            const patches = result.artifact[mihomo ? 'proxyPatches' : 'outboundPatches'] as Array<{
+                graphNodeId: string;
+                set: Record<string, string>;
+            }>;
+            const groups = result.artifact[mihomo ? 'proxy-groups' : 'outbounds'] as Array<
+                Record<string, unknown>
+            >;
+            const entry = groups[0];
+            const target = (entry[mihomo ? 'proxies' : 'outbounds'] as string[])[0];
+            const dependencies = new Map(
+                patches.map((patch) => [
+                    bindings.find((binding) => binding.graphNodeId === patch.graphNodeId)!.tag,
+                    patch.set[mihomo ? 'dialer-proxy' : 'detour'],
+                ]),
+            );
+            // Simulate a client dialing its dependencies before dialing a proxy.
+            const actualRoute: string[] = [];
+            const dial = (tag: string) => {
+                const via = dependencies.get(tag);
+                if (via) dial(via);
+                actualRoute.push(tag);
+            };
+            dial(target);
+            assert.deepEqual(actualRoute, ['Los Angeles', 'Tokyo', 'Frankfurt']);
+        }
     });
 
     it('returns structured unsupported results instead of degrading formats', () => {

@@ -204,21 +204,26 @@ export class TopologyValidator {
         }
         for (const exit of exits) {
             if (
-                (incoming.get(exit.id)?.length ?? 0) < 1 ||
+                (incoming.get(exit.id)?.length ?? 0) !== 1 ||
                 (outgoing.get(exit.id)?.length ?? 0) !== 0
             ) {
                 addIssue({
                     code: 'INVALID_EXIT_DEGREE',
-                    message: 'The exit must have at least one incoming edge and no outgoing edge.',
+                    message:
+                        'The exit must have exactly one incoming edge and no outgoing edge; merge branches with a load balancer.',
                     nodeIds: [exit.id],
                 });
             }
         }
         for (const proxy of proxies) {
-            if ((outgoing.get(proxy.id)?.length ?? 0) !== 1) {
+            if (
+                (outgoing.get(proxy.id)?.length ?? 0) !== 1 ||
+                (incoming.get(proxy.id)?.length ?? 0) !== 1
+            ) {
                 addIssue({
                     code: 'INVALID_PROXY_DEGREE',
-                    message: 'Every proxy must have exactly one next hop.',
+                    message:
+                        'Every proxy must have exactly one previous and next hop; merge branches with a load balancer.',
                     nodeIds: [proxy.id],
                 });
             }
