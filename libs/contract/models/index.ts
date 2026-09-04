@@ -2,6 +2,7 @@ export * from './api-tokens.schema';
 export * from './auth.schema';
 export * from './base-internal-squad.schema';
 export * from './base-stat.schema';
+export * from './camouflage-domain.schema';
 export * from './config-profile-inbounds.schema';
 export * from './config-profile.schema';
 export * from './export-stream';

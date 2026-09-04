@@ -1309,4 +1309,19 @@ export const ERRORS = {
             httpCode: 400,
         }),
     },
+    CAMOUFLAGE_DOMAIN_VALIDATION_UNAVAILABLE: {
+        code: 'A260',
+        message: 'Camouflage domain validation is unavailable on the selected node',
+        httpCode: 503,
+        withMessage: (message: string) => ({
+            code: 'A260',
+            message,
+            httpCode: 503,
+        }),
+    },
+    CAMOUFLAGE_DOMAIN_OWN_DOMAIN_REQUIRED: {
+        code: 'A261',
+        message: 'No verified camouflage-domain candidate is available; provide your own domain',
+        httpCode: 422,
+    },
 } as const;

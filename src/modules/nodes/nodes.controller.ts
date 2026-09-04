@@ -3,7 +3,16 @@ import type { Request } from 'express';
 import { CONTROLLERS_INFO, NODES_CONTROLLER } from '@contract/api';
 import { ROLE } from '@contract/constants';
 
-import { Body, Controller, HttpStatus, Param, Req, UseFilters, UseGuards } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    HttpStatus,
+    Param,
+    Query,
+    Req,
+    UseFilters,
+    UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { TypedConfigService } from '@common/config/app-config/typed-config.service';
@@ -32,8 +41,12 @@ import {
     BulkNodesActionsCommand,
     BulkNodesUpdateCommand,
     CreateNodeBootstrapCommand,
+    GetCamouflageDomainCatalogCommand,
+    SelectCamouflageDomainCommand,
+    ValidateCamouflageDomainCommand,
 } from '@libs/contracts/commands';
 
+import { CamouflageDomainService } from './camouflage-domain/camouflage-domain.service';
 import {
     BulkNodesActionsBodyDto,
     BulkNodesUpdateBodyDto,
@@ -55,6 +68,14 @@ import {
     NodeResponseDto,
     CreateNodeBootstrapBodyDto,
     CreateNodeBootstrapResponseDto,
+    GetCamouflageDomainCatalogQueryDto,
+    GetCamouflageDomainCatalogResponseDto,
+    SelectCamouflageDomainBodyDto,
+    SelectCamouflageDomainParamDto,
+    SelectCamouflageDomainResponseDto,
+    ValidateCamouflageDomainBodyDto,
+    ValidateCamouflageDomainParamDto,
+    ValidateCamouflageDomainResponseDto,
 } from './dtos';
 import { GetAllNodesTagsResponseModel } from './models';
 import { NodeBootstrapService } from './node-bootstrap.service';
@@ -72,7 +93,49 @@ export class NodesController {
         private readonly nodesService: NodesService,
         private readonly nodeBootstrapService: NodeBootstrapService,
         private readonly configService: TypedConfigService,
+        private readonly camouflageDomainService: CamouflageDomainService,
     ) {}
+
+    @Endpoint({
+        type: GetCamouflageDomainCatalogResponseDto,
+        command: GetCamouflageDomainCatalogCommand,
+        httpCode: HttpStatus.OK,
+    })
+    @Roles(ROLE.ADMIN)
+    async getCamouflageDomainCatalog(
+        @Query() query: GetCamouflageDomainCatalogQueryDto,
+    ): Promise<GetCamouflageDomainCatalogResponseDto> {
+        const result = await this.camouflageDomainService.getCatalog(query.nodeUuid);
+        return { response: errorHandler(result) };
+    }
+
+    @Endpoint({
+        type: ValidateCamouflageDomainResponseDto,
+        command: ValidateCamouflageDomainCommand,
+        httpCode: HttpStatus.OK,
+    })
+    @Roles(ROLE.ADMIN)
+    async validateCamouflageDomain(
+        @Param() param: ValidateCamouflageDomainParamDto,
+        @Body() body: ValidateCamouflageDomainBodyDto,
+    ): Promise<ValidateCamouflageDomainResponseDto> {
+        const result = await this.camouflageDomainService.validate(param.uuid, body);
+        return { response: errorHandler(result) };
+    }
+
+    @Endpoint({
+        type: SelectCamouflageDomainResponseDto,
+        command: SelectCamouflageDomainCommand,
+        httpCode: HttpStatus.OK,
+    })
+    @Roles(ROLE.ADMIN)
+    async selectCamouflageDomain(
+        @Param() param: SelectCamouflageDomainParamDto,
+        @Body() body: SelectCamouflageDomainBodyDto,
+    ): Promise<SelectCamouflageDomainResponseDto> {
+        const result = await this.camouflageDomainService.select(param.uuid, body);
+        return { response: errorHandler(result) };
+    }
 
     @Endpoint({
         type: CreateNodeBootstrapResponseDto,

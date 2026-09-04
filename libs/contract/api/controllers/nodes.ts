@@ -12,10 +12,15 @@ export const NODES_ROUTES = {
 
     ACTIONS: {
         CREATE_BOOTSTRAP: `${NODE_ACTIONS_ROUTE}/bootstrap`,
+        CAMOUFLAGE_DOMAINS_CATALOG: `${NODE_ACTIONS_ROUTE}/camouflage-domains`,
         ENABLE: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/enable`,
         DISABLE: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/disable`,
         RESTART: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/restart`,
         RESET_TRAFFIC: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/reset-traffic`,
+        VALIDATE_CAMOUFLAGE_DOMAIN: (uuid: string) =>
+            `${uuid}/${NODE_ACTIONS_ROUTE}/camouflage-domains/validate`,
+        SELECT_CAMOUFLAGE_DOMAIN: (uuid: string) =>
+            `${uuid}/${NODE_ACTIONS_ROUTE}/camouflage-domains/select`,
 
         RESTART_ALL: `${NODE_ACTIONS_ROUTE}/restart-all`,
         REORDER: `${NODE_ACTIONS_ROUTE}/reorder`,

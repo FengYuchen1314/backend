@@ -1,4 +1,5 @@
 export * from './create-node.request.dto';
+export * from './camouflage-domain.dto';
 export * from './delete-node.dto';
 export * from './disable-node.request.dto';
 export * from './enable-node.request.dto';

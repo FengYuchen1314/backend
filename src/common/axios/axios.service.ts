@@ -1,4 +1,9 @@
 import { ERRORS } from '@contract/constants';
+import {
+    CAMOUFLAGE_DOMAIN_AGENT_VALIDATION_PATH,
+    TCamouflageDomainAgentValidationReport,
+    TCamouflageDomainAgentValidationRequest,
+} from '@contract/models';
 import axios, {
     AxiosError,
     AxiosInstance,
@@ -70,6 +75,7 @@ export class AxiosService {
     public axiosInstance: AxiosInstance;
     private mtlsOptions: IMtlsOptions;
     private servername: string;
+    private jwtInitialization: Promise<void> | null = null;
     private readonly socksAgentCache = new Map<string, MtlsSocksProxyAgent>();
 
     constructor(private readonly commandBus: CommandBus) {
@@ -121,6 +127,19 @@ export class AxiosService {
             this.logger.error(`Error in onApplicationBootstrap: ${error}`);
             throw error;
         }
+    }
+
+    private async ensureJwt(): Promise<void> {
+        if (this.axiosInstance.defaults.httpsAgent && this.mtlsOptions) {
+            return;
+        }
+
+        this.jwtInitialization ??= this.setJwt().catch((error) => {
+            this.jwtInitialization = null;
+            throw error;
+        });
+
+        await this.jwtInitialization;
     }
 
     private resolveAgent(proxyUrl: null | string): https.Agent {
@@ -187,9 +206,10 @@ export class AxiosService {
         } = params;
 
         const url = this.getNodeUrl(opts.address, path, opts.port);
-        const httpsAgent = this.resolveAgent(opts.proxyUrl);
 
         try {
+            await this.ensureJwt();
+            const httpsAgent = this.resolveAgent(opts.proxyUrl);
             let body: unknown = EMPTY_BODY;
             let headers: RawAxiosRequestHeaders | undefined;
 
@@ -284,6 +304,21 @@ export class AxiosService {
             method: 'get',
             logAxiosError: false,
             timeout: 15_000,
+        });
+    }
+
+    public async validateCamouflageDomain(
+        data: TCamouflageDomainAgentValidationRequest,
+        opts: INodeConnectionOpts,
+    ): Promise<TResult<TCamouflageDomainAgentValidationReport>> {
+        return this.request<{ response: TCamouflageDomainAgentValidationReport }>({
+            label: 'VALIDATE CAMOUFLAGE DOMAIN',
+            path: CAMOUFLAGE_DOMAIN_AGENT_VALIDATION_PATH,
+            opts,
+            data,
+            handle500: true,
+            logAxiosError: false,
+            timeout: 60_000,
         });
     }
 

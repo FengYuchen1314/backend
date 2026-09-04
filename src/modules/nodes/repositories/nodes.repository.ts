@@ -364,6 +364,19 @@ export class NodesRepository implements ICrud<NodesEntity> {
         return result.map((value) => value.tag);
     }
 
+    public async findAssignedHostDomains(nodeUuid: string): Promise<string[]> {
+        const hosts = await this.prisma.tx.hosts.findMany({
+            where: {
+                nodes: {
+                    some: { nodeUuid },
+                },
+            },
+            select: { address: true, sni: true },
+        });
+
+        return hosts.flatMap(({ address, sni }) => (sni ? [address, sni] : [address]));
+    }
+
     public async getEnabledNodesByPluginUuid(pluginUuid: string): Promise<string[]> {
         const result = await this.qb.kysely
             .selectFrom('nodes')
