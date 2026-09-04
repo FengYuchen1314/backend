@@ -153,6 +153,21 @@ export class NodesRepository implements ICrud<NodesEntity> {
         }));
     }
 
+    public async findConnectedNodesWithInboundsForRemoval(): Promise<NodesEntity[]> {
+        const nodesList = await this.prisma.tx.nodes.findMany({
+            where: {
+                isConnected: true,
+                isDisabled: false,
+                activeConfigProfileUuid: {
+                    not: null,
+                },
+            },
+            include: INCLUDE_RESOLVED_INBOUNDS,
+        });
+
+        return nodesList.map((value) => new NodesEntity(value));
+    }
+
     public async findAllNodes(): Promise<NodesEntity[]> {
         const nodesList = await this.prisma.tx.nodes.findMany({
             include: INCLUDE_RESOLVED_INBOUNDS,
@@ -406,7 +421,9 @@ export class NodesRepository implements ICrud<NodesEntity> {
         const result = await this.qb.kysely
             .updateTable('nodes')
             .set({
-                integrationUuids: sql<string[]>`array_remove(${sql.ref('nodes.integration_uuids')}, ${getKyselyUuid(integrationUuid)})`,
+                integrationUuids: sql<
+                    string[]
+                >`array_remove(${sql.ref('nodes.integration_uuids')}, ${getKyselyUuid(integrationUuid)})`,
             })
             .where(
                 sql<boolean>`${sql.ref('nodes.integration_uuids')} @> ARRAY[${getKyselyUuid(integrationUuid)}]`,

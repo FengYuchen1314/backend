@@ -1,4 +1,5 @@
 import { Queue } from 'bullmq';
+import { randomUUID } from 'node:crypto';
 
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
@@ -31,6 +32,15 @@ import {
     IUnblockIpsPayload,
     IRecreateTablesPayload,
 } from './interfaces/executor.payload.interface';
+
+export interface IStartNodePayload {
+    force?: boolean;
+    nodeUuid: string;
+    retryIfBusy?: boolean;
+}
+
+const START_NODE_BUSY_RETRY_ATTEMPTS = 60;
+const START_NODE_BUSY_RETRY_DELAY_MS = 2_000;
 
 @Injectable()
 export class NodesQueuesService implements OnApplicationBootstrap {
@@ -85,9 +95,22 @@ export class NodesQueuesService implements OnApplicationBootstrap {
         await this.startAllNodesQueue.setGlobalConcurrency(1);
     }
 
-    public async startNode(payload: { nodeUuid: string; force?: boolean }) {
+    public async startNode(payload: IStartNodePayload) {
+        const retryOptions = payload.retryIfBusy
+            ? {
+                  attempts: START_NODE_BUSY_RETRY_ATTEMPTS,
+                  backoff: {
+                      type: 'fixed' as const,
+                      delay: START_NODE_BUSY_RETRY_DELAY_MS,
+                  },
+              }
+            : {};
+
         return this.startNodeQueue.add(NODES_JOB_NAMES.START_NODE, payload, {
-            jobId: `${NODES_JOB_NAMES.START_NODE}-${payload.nodeUuid}`,
+            ...retryOptions,
+            jobId: payload.retryIfBusy
+                ? `${NODES_JOB_NAMES.START_NODE}-${payload.nodeUuid}-${randomUUID()}`
+                : `${NODES_JOB_NAMES.START_NODE}-${payload.nodeUuid}`,
             removeOnComplete: true,
             removeOnFail: true,
         });

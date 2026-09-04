@@ -1289,4 +1289,14 @@ export const ERRORS = {
         message: 'Set tags error',
         httpCode: 500,
     },
+    INVALID_MANAGED_INBOUND_FOR_SERVER_TYPE: {
+        code: 'A258',
+        message: 'Managed inbound is not allowed for this server type',
+        httpCode: 400,
+        withMessage: (message: string) => ({
+            code: 'A258',
+            message,
+            httpCode: 400,
+        }),
+    },
 } as const;

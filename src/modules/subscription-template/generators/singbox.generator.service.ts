@@ -24,6 +24,8 @@ interface OutboundConfig {
     obfs?: ObfsConfig;
     outbounds?: string[];
     password?: string;
+    username?: string;
+    version?: string;
     remnawave?: { includeProxies?: boolean };
     server: string;
     server_port: number;
@@ -101,7 +103,7 @@ interface Hysteria2FinalMask {
 }
 
 const UNSUPPORTED_TRANSPORTS = new Set(['kcp', 'xhttp']);
-const PROXY_PROTOCOL_TYPES = new Set(['hysteria2', 'shadowsocks', 'trojan', 'vless']);
+const PROXY_PROTOCOL_TYPES = new Set(['hysteria2', 'shadowsocks', 'socks', 'trojan', 'vless']);
 const SELECTOR_TYPES = new Set([...PROXY_PROTOCOL_TYPES, 'urltest']);
 const MULTIPLEX_PROTOCOLS = new Set(['h2mux', 'smux', 'yamux']);
 const DURATION_REGEX = /^\d+(\.\d+)?(ns|us|µs|ms|s|m|h)$/;
@@ -209,6 +211,12 @@ export class SingBoxGeneratorService {
                         ...(host.protocolOptions.uotVersion === 1 && { version: 1 }),
                     };
                 }
+                return true;
+
+            case 'socks':
+                config.version = '5';
+                config.username = host.protocolOptions.username;
+                config.password = host.protocolOptions.password;
                 return true;
 
             default:

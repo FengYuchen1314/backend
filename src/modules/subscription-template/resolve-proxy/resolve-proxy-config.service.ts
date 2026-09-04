@@ -15,6 +15,7 @@ import {
 import { Injectable } from '@nestjs/common';
 
 import { TypedConfigService } from '@common/config/app-config';
+import { deriveSocksPassword } from '@common/helpers/derive-socks-password';
 import {
     resolveEncryptionFromDecryption,
     resolveInboundAndMlDsa65PublicKey,
@@ -534,6 +535,14 @@ export class ResolveProxyConfigService {
                     protocol: 'hysteria',
                     protocolOptions: {
                         version: 2,
+                    },
+                };
+            case 'socks':
+                return {
+                    protocol: 'socks',
+                    protocolOptions: {
+                        username: user.id.toString(),
+                        password: deriveSocksPassword(user.trojanPassword, user.vlessUuid),
                     },
                 };
             default:

@@ -24,6 +24,7 @@ import {
     UpdateNodeBodyDto,
 } from './dtos';
 import { NodesEntity } from './entities';
+import { validateManagedNodeCreation } from './managed-node-creation-policy';
 import { NodeResponseModel } from './models';
 import { NodesSystemCacheService } from './nodes-system-cache.service';
 import { NodesRepository } from './repositories/nodes.repository';
@@ -45,6 +46,36 @@ export class NodesService {
         try {
             const { configProfile, ...nodeData } = body;
 
+            const configProfileResponse = await this.queryBus.execute(
+                new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),
+            );
+
+            if (!configProfileResponse.isOk) {
+                return configProfileResponse;
+            }
+
+            const inboundsByUuid = new Map(
+                configProfileResponse.response.inbounds.map((inbound) => [inbound.uuid, inbound]),
+            );
+            const activeInbounds = configProfile.activeInbounds.map((uuid) =>
+                inboundsByUuid.get(uuid),
+            );
+
+            if (activeInbounds.some((inbound) => inbound === undefined)) {
+                return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
+            }
+
+            const policyError = validateManagedNodeCreation(
+                nodeData.serverType,
+                activeInbounds as NonNullable<(typeof activeInbounds)[number]>[],
+            );
+
+            if (policyError) {
+                return fail(
+                    ERRORS.INVALID_MANAGED_INBOUND_FOR_SERVER_TYPE.withMessage(policyError),
+                );
+            }
+
             const nodeEntity = new NodesEntity({
                 ...nodeData,
                 address: nodeData.address.trim(),
@@ -59,28 +90,11 @@ export class NodesService {
 
             const result = await this.nodesRepository.create(nodeEntity);
 
-            if (configProfile) {
-                const configProfileResponse = await this.queryBus.execute(
-                    new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),
+            if (configProfile.activeInbounds.length > 0) {
+                await this.nodesRepository.addInboundsToNode(
+                    result.uuid,
+                    configProfile.activeInbounds,
                 );
-
-                if (configProfileResponse.isOk) {
-                    const inbounds = configProfileResponse.response.inbounds;
-
-                    const areAllInboundsFromConfigProfile = configProfile.activeInbounds.every(
-                        (activeInboundUuid) =>
-                            inbounds.some((inbound) => inbound.uuid === activeInboundUuid),
-                    );
-
-                    if (areAllInboundsFromConfigProfile) {
-                        await this.nodesRepository.addInboundsToNode(
-                            result.uuid,
-                            configProfile.activeInbounds,
-                        );
-                    } else {
-                        return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
-                    }
-                }
             }
 
             const node = await this.nodesRepository.findByUUID(result.uuid);

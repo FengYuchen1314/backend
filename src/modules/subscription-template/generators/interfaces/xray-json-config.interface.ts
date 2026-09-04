@@ -19,6 +19,10 @@ export interface StreamSettings {
 }
 
 export interface OutboundSettings {
+    address?: string;
+    port?: number;
+    user?: string;
+    pass?: string;
     vnext?: Array<{
         address: string;
         port: number;

@@ -17,6 +17,7 @@ import { GetUserWithResolvedInboundsQuery } from '@modules/users/queries/get-use
 import { NodesQueuesService } from '@queue/_nodes';
 
 import { NodesRepository } from '../../repositories/nodes.repository';
+import { hasActiveSocksInbound } from '../socks-user-sync';
 import { AddUserToNodeEvent } from './add-user-to-node.event';
 
 @EventsHandler(AddUserToNodeEvent)
@@ -39,6 +40,9 @@ export class AddUserToNodeHandler implements IEventHandler<AddUserToNodeEvent> {
             }
 
             const { id, trojanPassword, vlessUuid, ssPassword, inbounds } = userEntity.response;
+            const handlerInbounds = inbounds.filter(
+                (inbound) => inbound.type.toLowerCase() !== 'socks',
+            );
 
             if (inbounds.length === 0) {
                 return;
@@ -56,7 +60,7 @@ export class AddUserToNodeHandler implements IEventHandler<AddUserToNodeEvent> {
                     prevVlessUuid: event.prevVlessUuid,
                 },
 
-                data: inbounds.map((inbound) => {
+                data: handlerInbounds.map((inbound) => {
                     const inboundType = this.resolveInboundType(inbound);
 
                     switch (inboundType) {
@@ -106,6 +110,15 @@ export class AddUserToNodeHandler implements IEventHandler<AddUserToNodeEvent> {
 
             for (const node of nodes) {
                 if (node.activeInbounds.length === 0 || !node.activeConfigProfileUuid) {
+                    continue;
+                }
+
+                if (hasActiveSocksInbound(node.activeInbounds)) {
+                    await this.nodesQueuesService.startNode({
+                        nodeUuid: node.uuid,
+                        force: true,
+                        retryIfBusy: true,
+                    });
                     continue;
                 }
 

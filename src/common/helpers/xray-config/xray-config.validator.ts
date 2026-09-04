@@ -13,6 +13,10 @@ import {
 
 import { HashedSet } from '@remnawave/hashed-set';
 
+import {
+    deriveSocksPassword,
+    getSocksUserHashIdentity,
+} from '@common/helpers/derive-socks-password';
 import { readPemLines } from '@common/utils/certs';
 import { getVlessFlow } from '@common/utils/flow/get-vless-flow';
 
@@ -25,8 +29,19 @@ import {
     SHADOWSOCKS_METHODS,
 } from './ss-cipher';
 
-const MANAGED_CLIENT_PROTOCOLS = new Set(['hysteria', 'shadowsocks', 'trojan', 'vless']);
+const MANAGED_CLIENT_PROTOCOLS = new Set(['hysteria', 'shadowsocks', 'socks', 'trojan', 'vless']);
 type ManagedInboundSettings = VLessInboundConfig | TrojanInboundConfig | ShadowsocksInboundConfig;
+
+interface SocksInboundAccount {
+    pass: string;
+    user: string;
+}
+
+interface SocksInboundSettings {
+    accounts?: SocksInboundAccount[];
+    auth?: string;
+    users?: SocksInboundAccount[];
+}
 
 const ALLOWED_PROTOCOLS = new Set([
     'dokodemo-door',
@@ -34,6 +49,7 @@ const ALLOWED_PROTOCOLS = new Set([
     'hysteria',
     'mixed',
     'shadowsocks',
+    'socks',
     'trojan',
     'tun',
     'tunnel',
@@ -165,6 +181,15 @@ export class XRayConfig {
             if (!this.hasManagedClients(inbound)) continue;
 
             this.ensureSettings(inbound);
+
+            if (inbound.protocol === 'socks') {
+                const settings = inbound.settings as unknown as SocksInboundSettings;
+                settings.auth = 'password';
+                settings.users = [];
+                delete settings.accounts;
+                continue;
+            }
+
             inbound.settings!.clients = [];
 
             if (injectFlow && inbound.protocol === 'vless') {
@@ -179,13 +204,17 @@ export class XRayConfig {
     ): XrayConfig {
         if (!this.config.inbounds) return this.config;
 
-        const usersByTag = this.groupUsersByTag(users, inboundsUserSets);
-
         const inboundMap = new Map(
             this.config.inbounds
                 .filter((inbound) => this.hasManagedClients(inbound))
                 .map((inbound) => [inbound.tag, inbound]),
         );
+        const socksInboundTags = new Set(
+            this.config.inbounds
+                .filter((inbound) => inbound.protocol === 'socks')
+                .map((inbound) => inbound.tag),
+        );
+        const usersByTag = this.groupUsersByTag(users, inboundsUserSets, socksInboundTags);
 
         for (const [tag, tagUsers] of usersByTag) {
             const inbound = inboundMap.get(tag);
@@ -201,6 +230,7 @@ export class XRayConfig {
     private groupUsersByTag(
         users: UserForConfigEntity[],
         inboundsUserSets: Map<string, HashedSet>,
+        socksInboundTags: Set<string | undefined>,
     ): Map<string, UserForConfigEntity[]> {
         const usersByTag = new Map<string, UserForConfigEntity[]>();
 
@@ -216,7 +246,13 @@ export class XRayConfig {
                 if (!inboundsUserSets.has(tag)) {
                     inboundsUserSets.set(tag, new HashedSet());
                 }
-                inboundsUserSets.get(tag)!.add(user.vlessUuid);
+                if (socksInboundTags.has(tag)) {
+                    const username = user.id.toString();
+                    const password = deriveSocksPassword(user.trojanPassword, user.vlessUuid);
+                    inboundsUserSets.get(tag)!.add(getSocksUserHashIdentity(username, password));
+                } else {
+                    inboundsUserSets.get(tag)!.add(user.vlessUuid);
+                }
             }
         }
 
@@ -283,6 +319,21 @@ export class XRayConfig {
                         ...(!isSS2022 && { method: method || 'chacha20-ietf-poly1305' }),
                         email: user.id.toString(),
                         id: user.vlessUuid,
+                    });
+                }
+                break;
+            }
+
+            case 'socks': {
+                const settings = inbound.settings as unknown as SocksInboundSettings;
+                settings.auth = 'password';
+                settings.users ??= [];
+                delete settings.accounts;
+
+                for (const user of users) {
+                    settings.users.push({
+                        user: user.id.toString(),
+                        pass: deriveSocksPassword(user.trojanPassword, user.vlessUuid),
                     });
                 }
                 break;

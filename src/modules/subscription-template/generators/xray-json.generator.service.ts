@@ -20,12 +20,14 @@ type VlessConfig = Extract<ResolvedProxyConfig, { protocol: 'vless' }>;
 type TrojanConfig = Extract<ResolvedProxyConfig, { protocol: 'trojan' }>;
 type ShadowsocksConfig = Extract<ResolvedProxyConfig, { protocol: 'shadowsocks' }>;
 type HysteriaConfig = Extract<ResolvedProxyConfig, { protocol: 'hysteria' }>;
+type SocksConfig = Extract<ResolvedProxyConfig, { protocol: 'socks' }>;
 
 type ProtocolBuilderMap = {
     vless: (host: VlessConfig) => object;
     trojan: (host: TrojanConfig) => object;
     shadowsocks: (host: ShadowsocksConfig) => object;
     hysteria: (host: HysteriaConfig) => object;
+    socks: (host: SocksConfig) => object;
 };
 
 type WsConfig = Extract<ResolvedProxyConfig, { transport: 'ws' }>;
@@ -88,6 +90,12 @@ const PROTOCOL_BUILDERS: ProtocolBuilderMap = {
                 UoTVersion: host.protocolOptions.uotVersion,
             },
         ],
+    }),
+    socks: (host) => ({
+        address: host.address,
+        port: host.port,
+        user: host.protocolOptions.username,
+        pass: host.protocolOptions.password,
     }),
 };
 
@@ -332,6 +340,8 @@ export class XrayJsonGeneratorService {
                 return PROTOCOL_BUILDERS.shadowsocks(host);
             case 'hysteria':
                 return PROTOCOL_BUILDERS.hysteria(host);
+            case 'socks':
+                return PROTOCOL_BUILDERS.socks(host);
         }
     }
 

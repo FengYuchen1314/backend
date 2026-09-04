@@ -6,6 +6,7 @@ import { RemoveUserCommand as RemoveUserFromNodeCommandSdk } from '@remnawave/no
 import { NodesQueuesService } from '@queue/_nodes';
 
 import { NodesRepository } from '../../repositories/nodes.repository';
+import { hasActiveSocksInbound } from '../socks-user-sync';
 import { RemoveUserFromNodeEvent } from './remove-user-from-node.event';
 
 @EventsHandler(RemoveUserFromNodeEvent)
@@ -18,7 +19,7 @@ export class RemoveUserFromNodeHandler implements IEventHandler<RemoveUserFromNo
     ) {}
     async handle(event: RemoveUserFromNodeEvent) {
         try {
-            const nodes = await this.nodesRepository.findConnectedNodesWithoutInbounds();
+            const nodes = await this.nodesRepository.findConnectedNodesWithInboundsForRemoval();
 
             if (nodes.length === 0) {
                 return;
@@ -31,12 +32,33 @@ export class RemoveUserFromNodeHandler implements IEventHandler<RemoveUserFromNo
                 },
             };
 
-            await this.nodesQueuesService.removeUserFromNodeBulk(
-                nodes.map((node) => ({
-                    data: userData,
-                    node: node.connectionOpts,
-                })),
-            );
+            const nodesForHotReload = [];
+
+            for (const node of nodes) {
+                if (hasActiveSocksInbound(node.activeInbounds)) {
+                    await this.nodesQueuesService.startNode({
+                        nodeUuid: node.uuid,
+                        force: true,
+                        retryIfBusy: true,
+                    });
+                    continue;
+                }
+
+                nodesForHotReload.push(node);
+            }
+
+            if (nodesForHotReload.length > 0) {
+                await this.nodesQueuesService.removeUserFromNodeBulk(
+                    nodesForHotReload.map((node) => ({
+                        data: userData,
+                        node: {
+                            address: node.address,
+                            port: node.port,
+                            proxyUrl: node.proxyUrl,
+                        },
+                    })),
+                );
+            }
 
             return;
         } catch (error) {

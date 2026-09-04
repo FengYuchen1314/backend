@@ -90,6 +90,10 @@ export class XrayGeneratorService {
                 return this.buildShadowsocksLink(host);
             case 'hysteria':
                 return this.buildHysteria2Link(host);
+            case 'socks':
+                // There is no sufficiently interoperable SOCKS share-link format.
+                // Structured Xray JSON, Mihomo/Clash and sing-box generators handle it instead.
+                return null;
             default:
                 return null;
         }

@@ -23,7 +23,16 @@ import { GetPreparedConfigWithUsersQuery } from '@modules/users/queries/get-prep
 import { QUEUES_NAMES } from '@queue/queue.enum';
 
 import { NODES_JOB_NAMES } from '../constants/nodes-job-name.constant';
-import { NodesQueuesService } from '../nodes-queues.service';
+import { IStartNodePayload, NodesQueuesService } from '../nodes-queues.service';
+
+const NODE_REQUEST_ALREADY_IN_PROGRESS = 'Request already in progress';
+
+export class RetryableStartNodeBusyError extends Error {
+    constructor(nodeUuid: string, reason: string) {
+        super(`Node ${nodeUuid} is busy: ${reason}`);
+        this.name = RetryableStartNodeBusyError.name;
+    }
+}
 
 @Processor(QUEUES_NAMES.NODES.START, {
     concurrency: 40,
@@ -42,9 +51,9 @@ export class StartNodeProcessor extends WorkerHost {
         super();
     }
 
-    async process(job: Job<{ nodeUuid: string; force?: boolean }>) {
+    async process(job: Job<IStartNodePayload>) {
         try {
-            const { nodeUuid, force } = job.data;
+            const { nodeUuid, force, retryIfBusy } = job.data;
 
             const nodeCheckup = await this.queryBus.execute(new GetNodeByUuidQuery(nodeUuid));
 
@@ -56,6 +65,9 @@ export class StartNodeProcessor extends WorkerHost {
             const { response: node } = nodeCheckup;
 
             if (node.isConnecting) {
+                if (retryIfBusy) {
+                    throw new RetryableStartNodeBusyError(nodeUuid, 'database state isConnecting');
+                }
                 return;
             }
 
@@ -256,10 +268,24 @@ export class StartNodeProcessor extends WorkerHost {
                     }),
                 );
 
+                if (
+                    retryIfBusy &&
+                    startNodeResult.message?.includes(NODE_REQUEST_ALREADY_IN_PROGRESS)
+                ) {
+                    throw new RetryableStartNodeBusyError(
+                        nodeUuid,
+                        NODE_REQUEST_ALREADY_IN_PROGRESS,
+                    );
+                }
+
                 return;
             }
 
             const nodeResponse = startNodeResult.response;
+
+            if (retryIfBusy && nodeResponse.error?.includes(NODE_REQUEST_ALREADY_IN_PROGRESS)) {
+                throw new RetryableStartNodeBusyError(nodeUuid, NODE_REQUEST_ALREADY_IN_PROGRESS);
+            }
 
             await this.rawCacheService.setMany([
                 {
@@ -308,6 +334,9 @@ export class StartNodeProcessor extends WorkerHost {
             return;
         } catch (error) {
             this.logger.error(`Error handling "${NODES_JOB_NAMES.START_NODE}" job: ${error}`);
+            if (error instanceof RetryableStartNodeBusyError) {
+                throw error;
+            }
         }
     }
 }

@@ -26,6 +26,11 @@ export interface IHysteriaProtocolOptions {
     version: number;
 }
 
+export interface ISocksProtocolOptions {
+    password: string;
+    username: string;
+}
+
 // ─── Transport Options ───────────────────────────────────
 
 export interface ITcpTransportOptions {
@@ -115,11 +120,17 @@ export type HysteriaProtocol = {
     protocolOptions: IHysteriaProtocolOptions;
 };
 
+export type SocksProtocol = {
+    protocol: 'socks';
+    protocolOptions: ISocksProtocolOptions;
+};
+
 export type ProtocolVariant =
     | VlessProtocol
     | TrojanProtocol
     | ShadowsocksProtocol
-    | HysteriaProtocol;
+    | HysteriaProtocol
+    | SocksProtocol;
 
 // ─── Transport Variants ──────────────────────────────────
 
