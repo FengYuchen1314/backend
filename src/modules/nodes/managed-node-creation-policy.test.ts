@@ -1,5 +1,6 @@
 import 'reflect-metadata';
-import { ERRORS, SERVER_TYPES } from '@contract/constants';
+import { CreateNodeCommand } from '@contract/commands';
+import { ERRORS, NODE_CREATION_MODES, SERVER_TYPES } from '@contract/constants';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -30,7 +31,7 @@ const socksInbound = buildInbound({
     port: 10_800,
     rawInbound: {
         protocol: 'socks',
-        settings: { auth: 'password', users: [] },
+        settings: { auth: 'password', users: [], udp: false },
     },
 });
 
@@ -67,11 +68,80 @@ test('managed presets are classified without treating imported raw protocols as 
     assert.equal(
         getManagedNodeProtocol(
             buildInbound({
+                type: 'socks',
+                rawInbound: {
+                    protocol: 'socks',
+                    settings: { auth: 'password', users: [], udp: true },
+                },
+            }),
+        ),
+        null,
+    );
+    assert.equal(
+        getManagedNodeProtocol(
+            buildInbound({
+                type: 'socks',
+                rawInbound: {
+                    protocol: 'socks',
+                    settings: { auth: 'password', users: [] },
+                },
+            }),
+        ),
+        null,
+    );
+    assert.equal(
+        getManagedNodeProtocol(
+            buildInbound({
                 type: 'trojan',
                 rawInbound: { protocol: 'trojan', settings: { clients: [] } },
             }),
         ),
         null,
+    );
+});
+
+test('create-node contract defaults to managed mode and requires unique active inbounds', () => {
+    const baseBody = {
+        name: 'contract-node',
+        address: 'contract-node.example.com',
+        configProfile: {
+            activeConfigProfileUuid: 'ff294d9d-be14-4610-ae9d-701e4c307dd0',
+            activeInbounds: [visionInbound.uuid],
+        },
+    };
+
+    const managed = CreateNodeCommand.RequestBodySchema.parse(baseBody);
+    assert.equal(managed.creationMode, NODE_CREATION_MODES.MANAGED);
+
+    const external = CreateNodeCommand.RequestBodySchema.parse({
+        ...baseBody,
+        creationMode: NODE_CREATION_MODES.EXTERNAL_IMPORT,
+    });
+    assert.equal(external.creationMode, NODE_CREATION_MODES.EXTERNAL_IMPORT);
+
+    assert.equal(
+        CreateNodeCommand.RequestBodySchema.safeParse({
+            ...baseBody,
+            creationMode: 'UNTRUSTED_MODE',
+        }).success,
+        false,
+    );
+    assert.equal(
+        CreateNodeCommand.RequestBodySchema.safeParse({
+            ...baseBody,
+            configProfile: { ...baseBody.configProfile, activeInbounds: [] },
+        }).success,
+        false,
+    );
+    assert.equal(
+        CreateNodeCommand.RequestBodySchema.safeParse({
+            ...baseBody,
+            configProfile: {
+                ...baseBody.configProfile,
+                activeInbounds: [visionInbound.uuid, visionInbound.uuid],
+            },
+        }).success,
+        false,
     );
 });
 
@@ -181,4 +251,159 @@ test('createNode validates profile and server policy before writing a Nodes reco
         assert.equal(result.code, ERRORS.INVALID_MANAGED_INBOUND_FOR_SERVER_TYPE.code);
     }
     assert.equal(createCalls, 0);
+});
+
+test('createNode permits an explicitly imported legacy inbound without persisting creation mode', async () => {
+    const legacyInbound = buildInbound({
+        type: 'trojan',
+        rawInbound: { protocol: 'trojan', settings: { clients: [] } },
+    });
+    let persistedEntity: Record<string, unknown> | undefined;
+    let persistedInboundUuids: string[] | undefined;
+    let startCalls = 0;
+
+    const queryBus = {
+        async execute() {
+            return {
+                isOk: true,
+                response: { inbounds: [legacyInbound] },
+            };
+        },
+    };
+    const queues = {
+        async startNode() {
+            startCalls += 1;
+        },
+    };
+    const service = new NodesService(
+        {} as never,
+        { emit() {} } as never,
+        queues as never,
+        queryBus as never,
+        {} as never,
+        {
+            async getOne() {
+                return {
+                    system: null,
+                    onlineUsers: 0,
+                    versions: null,
+                    xrayUptime: 0,
+                };
+            },
+        } as never,
+    );
+
+    const serviceWithPersistence = service as unknown as {
+        createNodeWithInbounds: (
+            entity: Record<string, unknown>,
+            activeInbounds: string[],
+        ) => Promise<Record<string, unknown>>;
+    };
+    serviceWithPersistence.createNodeWithInbounds = async (entity, activeInbounds) => {
+        persistedEntity = entity;
+        persistedInboundUuids = activeInbounds;
+        Object.assign(entity, {
+            id: 1n,
+            uuid: 'e99a8641-d12d-45af-a165-9768fcf19909',
+            activeInbounds: [legacyInbound],
+            consumptionMultiplier: 1_000_000_000n,
+            nodeConsumptionMultiplier: 1_000_000_000n,
+        });
+        return entity;
+    };
+
+    const result = await service.createNode({
+        creationMode: NODE_CREATION_MODES.EXTERNAL_IMPORT,
+        name: 'legacy-import',
+        address: 'legacy.example.com',
+        serverType: SERVER_TYPES.LEASED_LINE,
+        configProfile: {
+            activeConfigProfileUuid: 'ff294d9d-be14-4610-ae9d-701e4c307dd0',
+            activeInbounds: [legacyInbound.uuid],
+        },
+    } as never);
+
+    assert.equal(result.isOk, true);
+    assert.equal(startCalls, 1);
+    assert.deepEqual(persistedInboundUuids, [legacyInbound.uuid]);
+    assert.equal(Object.hasOwn(persistedEntity ?? {}, 'creationMode'), false);
+});
+
+test('createNode rejects duplicate inbounds before querying or writing', async () => {
+    let queryCalls = 0;
+    const service = new NodesService(
+        {} as never,
+        {} as never,
+        {} as never,
+        {
+            async execute() {
+                queryCalls += 1;
+                throw new Error('query must not be called');
+            },
+        } as never,
+        {} as never,
+        {} as never,
+    );
+
+    const result = await service.createNode({
+        creationMode: NODE_CREATION_MODES.EXTERNAL_IMPORT,
+        name: 'duplicate-node',
+        address: 'duplicate.example.com',
+        configProfile: {
+            activeConfigProfileUuid: 'ff294d9d-be14-4610-ae9d-701e4c307dd0',
+            activeInbounds: [visionInbound.uuid, visionInbound.uuid],
+        },
+    } as never);
+
+    assert.equal(result.isOk, false);
+    if (!result.isOk) {
+        assert.equal(result.code, ERRORS.INVALID_NODE_INBOUNDS.code);
+    }
+    assert.equal(queryCalls, 0);
+});
+
+test('external import still rejects an inbound outside the selected profile', async () => {
+    let persistenceCalls = 0;
+    const service = new NodesService(
+        {} as never,
+        {} as never,
+        {} as never,
+        {
+            async execute() {
+                return {
+                    isOk: true,
+                    response: { inbounds: [visionInbound] },
+                };
+            },
+        } as never,
+        {} as never,
+        {} as never,
+    );
+    (
+        service as unknown as {
+            createNodeWithInbounds: () => Promise<never>;
+        }
+    ).createNodeWithInbounds = async () => {
+        persistenceCalls += 1;
+        throw new Error('persistence must not be called');
+    };
+
+    const result = await service.createNode({
+        creationMode: NODE_CREATION_MODES.EXTERNAL_IMPORT,
+        name: 'foreign-inbound',
+        address: 'foreign.example.com',
+        configProfile: {
+            activeConfigProfileUuid: 'ff294d9d-be14-4610-ae9d-701e4c307dd0',
+            activeInbounds: ['a8a3d4d2-e2ae-4118-a5bb-9458d2c589a1'],
+        },
+    } as never);
+
+    assert.equal(result.isOk, false);
+    if (!result.isOk) {
+        assert.equal(
+            result.code,
+            ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE.code,
+        );
+    }
+    assert.equal(persistenceCalls, 0);
 });

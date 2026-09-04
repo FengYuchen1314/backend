@@ -217,6 +217,7 @@ export class SingBoxGeneratorService {
                 config.version = '5';
                 config.username = host.protocolOptions.username;
                 config.password = host.protocolOptions.password;
+                config.network = 'tcp';
                 return true;
 
             default:

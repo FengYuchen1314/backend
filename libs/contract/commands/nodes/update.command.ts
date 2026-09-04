@@ -50,7 +50,12 @@ export namespace UpdateNodeCommand {
         configProfile: z
             .object({
                 activeConfigProfileUuid: z.uuid(),
-                activeInbounds: z.array(z.uuid()),
+                activeInbounds: z
+                    .array(z.uuid())
+                    .min(1, 'At least one active inbound is required')
+                    .refine((uuids) => new Set(uuids).size === uuids.length, {
+                        message: 'Active inbounds must be unique',
+                    }),
             })
             .optional(),
 

@@ -94,7 +94,7 @@ test('subscription resolver and inbound injection use the same dedicated SOCKS p
                 tag: 'SOCKS_MANAGED',
                 port: 10_800,
                 protocol: 'socks',
-                settings: { auth: 'password', users: [] },
+                settings: { auth: 'password', users: [], udp: false },
             },
         ],
         outbounds: [{ tag: 'DIRECT', protocol: 'freedom' }],
@@ -123,6 +123,7 @@ test('subscription resolver and inbound injection use the same dedicated SOCKS p
     assert.equal(resolvedProtocol?.protocol, 'socks');
     assert.equal(resolvedProtocol?.protocolOptions.password, socksPassword);
     assert.equal(injectedPassword, socksPassword);
+    assert.equal(firstInbound.settings.udp, false);
     assert.notEqual(injectedPassword, sourceTrojanPassword);
 });
 
@@ -156,6 +157,7 @@ test('structured subscription generators emit native SOCKS5 authentication field
     assert.equal(mihomoNode.type, 'socks5');
     assert.equal(mihomoNode.username, '42');
     assert.equal(mihomoNode.password, socksPassword);
+    assert.equal(mihomoNode.udp, false);
 
     const clash = new ClashGeneratorService({} as never);
     const clashNode = (
@@ -166,6 +168,7 @@ test('structured subscription generators emit native SOCKS5 authentication field
     assert.equal(clashNode.type, 'socks5');
     assert.equal(clashNode.username, '42');
     assert.equal(clashNode.password, socksPassword);
+    assert.equal(clashNode.udp, false);
 
     const singBox = new SingBoxGeneratorService({} as never);
     const singBoxOutbound = (
@@ -177,6 +180,7 @@ test('structured subscription generators emit native SOCKS5 authentication field
     assert.equal(singBoxOutbound.version, '5');
     assert.equal(singBoxOutbound.username, '42');
     assert.equal(singBoxOutbound.password, socksPassword);
+    assert.equal(singBoxOutbound.network, 'tcp');
 });
 
 test('base64 subscription omits SOCKS instead of emitting a non-portable URI', () => {

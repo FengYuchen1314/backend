@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { NODES_ROUTES, REST_API } from '../../api';
-import { getEndpointDetails, SERVER_TYPES } from '../../constants';
+import { getEndpointDetails, NODE_CREATION_MODES, SERVER_TYPES } from '../../constants';
 import { NodeIpsSchema } from '../../models';
 import { NodeResponseSchema } from './node.response';
 export namespace CreateNodeCommand {
@@ -16,6 +16,7 @@ export namespace CreateNodeCommand {
     );
 
     export const RequestBodySchema = z.object({
+        creationMode: z.enum(NODE_CREATION_MODES).optional().default(NODE_CREATION_MODES.MANAGED),
         name: z.string().min(3).max(30),
         address: z.string().min(2),
         port: z.int().min(1).max(65535).optional(),
@@ -49,7 +50,12 @@ export namespace CreateNodeCommand {
 
         configProfile: z.object({
             activeConfigProfileUuid: z.uuid(),
-            activeInbounds: z.array(z.uuid()),
+            activeInbounds: z
+                .array(z.uuid())
+                .min(1, 'At least one active inbound is required')
+                .refine((uuids) => new Set(uuids).size === uuids.length, {
+                    message: 'Active inbounds must be unique',
+                }),
         }),
 
         providerUuid: z.uuid().nullish(),

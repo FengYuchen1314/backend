@@ -195,7 +195,7 @@ export class MihomoGeneratorService {
             server: host.address,
             port: host.port,
             network: this.resolveClashNetwork(host),
-            udp: true,
+            udp: host.protocol !== 'socks',
             'ip-version': host.clientOverrides.mihomoIpVersion ?? undefined,
         };
 
@@ -257,6 +257,7 @@ export class MihomoGeneratorService {
             case 'socks':
                 node.username = host.protocolOptions.username;
                 node.password = host.protocolOptions.password;
+                node.udp = false;
                 return true;
 
             default:

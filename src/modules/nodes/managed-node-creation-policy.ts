@@ -33,7 +33,7 @@ export function getManagedNodeProtocol(
     const settings = asRecord(rawInbound?.settings);
 
     if (protocol === 'socks') {
-        return settings?.auth === 'password' ? 'SOCKS5' : null;
+        return settings?.auth === 'password' && settings.udp === false ? 'SOCKS5' : null;
     }
 
     if (protocol !== 'vless') return null;

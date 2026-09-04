@@ -1,4 +1,5 @@
-import { ERRORS, EVENTS, NODES_BULK_ACTIONS } from '@contract/constants';
+import { ERRORS, EVENTS, NODE_CREATION_MODES, NODES_BULK_ACTIONS } from '@contract/constants';
+import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -29,6 +30,18 @@ import { NodeResponseModel } from './models';
 import { NodesSystemCacheService } from './nodes-system-cache.service';
 import { NodesRepository } from './repositories/nodes.repository';
 
+function validateActiveInboundUuids(activeInbounds: string[]): string | null {
+    if (activeInbounds.length === 0) {
+        return 'At least one active inbound is required.';
+    }
+
+    if (new Set(activeInbounds).size !== activeInbounds.length) {
+        return 'Active inbounds must not contain duplicate UUIDs.';
+    }
+
+    return null;
+}
+
 @Injectable()
 export class NodesService {
     private readonly logger = new Logger(NodesService.name);
@@ -44,7 +57,12 @@ export class NodesService {
 
     public async createNode(body: CreateNodeBodyDto): Promise<TResult<NodeResponseModel>> {
         try {
-            const { configProfile, ...nodeData } = body;
+            const { configProfile, creationMode = NODE_CREATION_MODES.MANAGED, ...nodeData } = body;
+
+            const activeInboundsError = validateActiveInboundUuids(configProfile.activeInbounds);
+            if (activeInboundsError) {
+                return fail(ERRORS.INVALID_NODE_INBOUNDS.withMessage(activeInboundsError));
+            }
 
             const configProfileResponse = await this.queryBus.execute(
                 new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),
@@ -65,10 +83,13 @@ export class NodesService {
                 return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
             }
 
-            const policyError = validateManagedNodeCreation(
-                nodeData.serverType,
-                activeInbounds as NonNullable<(typeof activeInbounds)[number]>[],
-            );
+            const policyError =
+                creationMode === NODE_CREATION_MODES.EXTERNAL_IMPORT
+                    ? null
+                    : validateManagedNodeCreation(
+                          nodeData.serverType,
+                          activeInbounds as NonNullable<(typeof activeInbounds)[number]>[],
+                      );
 
             if (policyError) {
                 return fail(
@@ -88,20 +109,10 @@ export class NodesService {
                 activeConfigProfileUuid: configProfile.activeConfigProfileUuid,
             });
 
-            const result = await this.nodesRepository.create(nodeEntity);
-
-            if (configProfile.activeInbounds.length > 0) {
-                await this.nodesRepository.addInboundsToNode(
-                    result.uuid,
-                    configProfile.activeInbounds,
-                );
-            }
-
-            const node = await this.nodesRepository.findByUUID(result.uuid);
-
-            if (!node) {
-                throw new Error('Node not found');
-            }
+            const node = await this.createNodeWithInbounds(
+                nodeEntity,
+                configProfile.activeInbounds,
+            );
 
             await this.nodesQueuesService.startNode({
                 nodeUuid: node.uuid,
@@ -130,6 +141,23 @@ export class NodesService {
             this.logger.error(error);
             return fail(ERRORS.CREATE_NODE_ERROR);
         }
+    }
+
+    @Transactional()
+    private async createNodeWithInbounds(
+        nodeEntity: NodesEntity,
+        activeInbounds: string[],
+    ): Promise<NodesEntity> {
+        const result = await this.nodesRepository.create(nodeEntity);
+
+        await this.nodesRepository.addInboundsToNode(result.uuid, activeInbounds);
+
+        const node = await this.nodesRepository.findByUUID(result.uuid);
+        if (!node) {
+            throw new Error('Node not found after creation');
+        }
+
+        return node;
     }
 
     public async getAllNodes(): Promise<TResult<NodeResponseModel[]>> {
@@ -270,6 +298,13 @@ export class NodesService {
             }
 
             if (configProfile) {
+                const activeInboundsError = validateActiveInboundUuids(
+                    configProfile.activeInbounds,
+                );
+                if (activeInboundsError) {
+                    return fail(ERRORS.INVALID_NODE_INBOUNDS.withMessage(activeInboundsError));
+                }
+
                 const configProfileResponse = await this.queryBus.execute(
                     new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),
                 );
@@ -494,6 +529,11 @@ export class NodesService {
     public async profileModification(body: ProfileModificationBodyDto): Promise<TResult<boolean>> {
         try {
             const { uuids, configProfile } = body;
+
+            const activeInboundsError = validateActiveInboundUuids(configProfile.activeInbounds);
+            if (activeInboundsError) {
+                return fail(ERRORS.INVALID_NODE_INBOUNDS.withMessage(activeInboundsError));
+            }
 
             const configProfileResponse = await this.queryBus.execute(
                 new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),

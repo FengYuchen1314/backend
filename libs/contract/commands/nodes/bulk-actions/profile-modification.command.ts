@@ -18,7 +18,12 @@ export namespace BulkNodesProfileModificationCommand {
         uuids: z.array(z.uuid()).min(1),
         configProfile: z.object({
             activeConfigProfileUuid: z.uuid(),
-            activeInbounds: z.array(z.uuid()).min(1),
+            activeInbounds: z
+                .array(z.uuid())
+                .min(1, 'At least one active inbound is required')
+                .refine((uuids) => new Set(uuids).size === uuids.length, {
+                    message: 'Active inbounds must be unique',
+                }),
         }),
     });
 

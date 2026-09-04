@@ -1299,4 +1299,14 @@ export const ERRORS = {
             httpCode: 400,
         }),
     },
+    INVALID_NODE_INBOUNDS: {
+        code: 'A259',
+        message: 'Node must have at least one unique active inbound',
+        httpCode: 400,
+        withMessage: (message: string) => ({
+            code: 'A259',
+            message,
+            httpCode: 400,
+        }),
+    },
 } as const;

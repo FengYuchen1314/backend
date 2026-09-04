@@ -90,7 +90,7 @@ export class ClashGeneratorService {
             server: host.address,
             port: host.port,
             network: this.resolveClashNetwork(host),
-            udp: true,
+            udp: host.protocol !== 'socks',
         };
 
         if (!this.applyProtocolFields(node, host)) {
