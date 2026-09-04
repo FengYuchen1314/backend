@@ -7,7 +7,7 @@ finish the original eight requirements. The active remediation objective is not 
 
 - Backend: wip/shared-443-backend, functional checkpoint 88fcdb69.
 - Frontend: wip/shared-443-ui, checkpoint 74acd0f3.
-- Node: wip/shared-443-node, checkpoint d7a4fd7.
+- Node: wip/shared-443-node, runtime checkpoint d7a4fd7; AnyTLS security/accounting proof 5f32667.
 - Published/tested Mieru Node image: fbf271d, digest
   sha256:80e27e701376c14e04aba349bebb8c8d23ee0c7a9feca5442ed27223c7af090e.
 
@@ -40,12 +40,20 @@ Frontend 74acd0f3 passed [CI](https://github.com/FengYuchen1314/frontend/actions
 including its 22 tests and production build. Browser acceptance is still outstanding.
 
 The [new exact paired image build](https://github.com/FengYuchen1314/backend/actions/runs/33919348040)
-targets backend 88fcdb69 + frontend 74acd0f3. Validation and the paired frontend build passed;
-the final multi-architecture Docker build was still running at this checkpoint. Check its final
-outcome before claiming success. WIP tags are not published.
+targets backend 88fcdb69 + frontend 74acd0f3. Validation, the paired frontend build and the final
+multi-architecture Docker build all passed (completed 2026-09-04 21:20 UTC). WIP tags are not
+published; this confirms compilation, not deployment or browser acceptance.
 
 ## Implemented connections
 
+- The user now targets Clash Verge / Mihomo only. A native-Mihomo AnyTLS + ShadowTLS security
+  proof retains verified inner TLS and restricts its outer wrapper to the exact inner listener.
+  Node 5f32667 passed [CI](https://github.com/FengYuchen1314/node/actions/runs/33922409927): 13 tests
+  with a Mihomo inner server and 16 with an Actions-built sing-box inner server, including their
+  parent tests. Only the server varies; both variants use the official Mihomo client. Plaintext
+  positive control, certificate/password failures, wrapper bypass, closed-flow cumulative user
+  accounting, counter reset and removed-user rejection are covered. This is a proof harness,
+  **not** managed protocol creation or a deployed Agent runtime; see anytls-shadowtls-investigation.md.
 - Preserve managed server-type restrictions and external imports. Mieru/SOCKS changes use their
   correct runtime reload/stop paths, including profile deletion and failed-stop reporting.
 - Backend now prepares ISOLATED_LISTENERS by inbound UUID and per-user entitlement. One physical
@@ -111,12 +119,25 @@ only for Node/dependencies, with the new generator/compiler code from the 88fcdb
 No panel process/database was started. Networking was limited to container loopback, with no host
 ports or Docker socket. Afterwards both PDF containers remained healthy and HTTP 38100 returned 200.
 
+The Actions AnyTLS security/accounting artifact from Node 5f32667 was also verified locally and
+on this VPS, SHA-256 `d549b9a3e3491704674023458256f5a6e9f8c38b68de8867d29b21efc6b7d96a`.
+All 16 tests (including the parent) passed with the official Mihomo client, a Mihomo outer
+wrapper and an Actions-built, pinned sing-box inner server with cumulative statistics enabled.
+The test included plaintext-control/inner-TLS wire capture, certificate/password failures,
+wrapper and plaintext-inner bypass rejection, closed-connection user accounting/isolation,
+counter reset and removed-user rejection after process replacement. No core was compiled on
+the VPS. The private test directory is `/opt/xboard-anytls-test.vEeHlL09`, its disposable container
+was removed, and there were no host ports, Docker socket, host-network access or panel processes.
+This is still a protocol proof, not an AnyTLS-capable managed Node image.
+
 ## Still required
 
-- AnyTLS + ShadowTLS runtime, managed creation, subscriptions and shared-443 integration. Source
-  inspection found that the upstream inline Mihomo combination replaces ordinary TLS with
-  ShadowTLS, which does not encrypt payloads. Preserve real inner encryption and verify it before
-  exposing this option; see anytls-shadowtls-investigation.md. Connectivity alone is insufficient.
+- The user clarified that only Clash Verge / Mihomo client support is required. Existing sing-box
+  output may remain, but new protocol acceptance must demonstrate native Mihomo interoperability.
+- AnyTLS + ShadowTLS runtime, managed creation, subscriptions and shared-443 integration. The
+  secure native-Mihomo transport and server accounting proof now pass, but persistent Agent
+  reconciliation/accounting, certificate lifecycle and topology-wrapper preservation are still
+  required before exposing this option; see anytls-shadowtls-investigation.md.
 - Deliver every Agent artifact/image through the panel instead of direct registry/download access.
 - Full panel/API/Agent/browser acceptance for reverse-proxy management, actual shared-443 Xray
   traffic, public certificate issuance, restarts and recovery. See node-edge-settings.md.
