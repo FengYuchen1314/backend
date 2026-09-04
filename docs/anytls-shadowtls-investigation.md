@@ -1,8 +1,9 @@
 # AnyTLS + ShadowTLS: security gate before implementation
 
-Status: a native-Mihomo security proof now passes; managed runtime/creation/subscriptions are
-still not implemented or advertised as usable. The user explicitly requires **Clash Verge / Mihomo
-only**. Existing AnyTLS-named worktrees contain no AnyTLS implementation.
+Status: the native-Mihomo security proof and an **opt-in Node Agent runtime** now pass native
+tests. Backend-managed creation, production subscriptions and shared-443 integration are still
+not connected or advertised as usable. The user explicitly requires **Clash Verge / Mihomo only**.
+Implementation is on Node's `wip/shared-443-node`, not the older AnyTLS-named worktrees.
 
 ShadowTLS's [official documentation](https://github.com/ihciah/shadow-tls#how-to-use-it) states that
 the protocol does not encrypt payloads and should be combined with an encrypted proxy.
@@ -78,12 +79,27 @@ Actions artifact SHA-256:
 `d549b9a3e3491704674023458256f5a6e9f8c38b68de8867d29b21efc6b7d96a`;
 private fixture directory `/opt/xboard-anytls-test.vEeHlL09`. The disposable container was removed.
 
+Node b027eb9 adds strict config/certificate checks, independent supervised core processes,
+serialized reload/rollback, managed user/listener removal, durable cumulative totals and billing
+baselines, explicit-stop persistence and graceful Agent restart. It is default-disabled and
+exposes a JWT-protected `/node/anytls` API that the backend does not yet call. Native clients
+cannot reach local management APIs. The supervisor is tested against Agent death and its own
+SIGKILL; no unowned PID is killed. This does not prove lossless accounting on hard crashes: the
+last uncheckpointed traffic can be lost, and panel delivery acknowledgements are not implemented.
+
+It passed [CI](https://github.com/FengYuchen1314/node/actions/runs/33924956212) and all 24 combined
+security/managed-runtime tests on 185.99.135.224 using only Actions-built artifacts, with no skips.
+Archive SHA-256: `dadc319d42c1336cf8e87cd5b009bfcb5a318a24e275c9d2111599e353b4ae90`.
+The private fixture directory is `/opt/xboard-anytls-test.AmVTMJLu`; no public port or existing
+service was changed. This is compiled runtime-class acceptance, not full HTTP/JWT API acceptance
+or acceptance of the newly built complete Node image. See Node's docs/anytls-security-proof.md.
+
 Before exposing managed creation, complete:
 
-- Native server accounting/isolation/revocation tests, then persistent baseline/epoch handling
-  across runtime and Agent restarts, and aggregation with simultaneous Xray user statistics.
-- Managed multi-core configuration preparation and transactional start/stop/rollback without
-  replacing existing Xray behavior. All private listeners/control interfaces stay loopback-only.
+- Backend start/stop/reconciliation wiring and aggregation with simultaneous Xray user statistics,
+  preserving unbilled deltas on partial failures and defining delivery/crash semantics.
+- Full API and complete-image acceptance of the opt-in runtime, including coordination with
+  existing Xray start/stop/edge behavior. Private listeners/control interfaces stay loopback-only.
 - Shared-443 routing. Neither inspected Mihomo listener configuration nor current sing-box
   accepts the existing VLESS PROXY-v2 path as-is; do not blindly forward that header.
 - Subscription generation with private dependencies. Topology cloning currently replaces a

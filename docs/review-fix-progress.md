@@ -132,12 +132,23 @@ This is still a protocol proof, not an AnyTLS-capable managed Node image.
 
 ## Still required
 
+Update after the security-only checkpoints above: Node b027eb9 now provides an opt-in managed
+AnyTLS runtime (default-disabled), with native configuration/certificate validation, supervised
+cores, transactional reload/rollback, durable cumulative accounting and graceful restart. It
+passed [CI](https://github.com/FengYuchen1314/node/actions/runs/33924956212) and all 24 combined
+security/lifecycle tests on 185.99.135.224. Artifact SHA-256:
+`dadc319d42c1336cf8e87cd5b009bfcb5a318a24e275c9d2111599e353b4ae90`.
+The container was removed and both PDF services remained healthy (HTTP 38100 = 200). Backend
+creation, subscriptions, mixed Xray billing, shared-443 and full API/image acceptance are still
+outstanding; no public managed protocol option has been enabled. The next cleanup patch is not
+part of that verified checksum. Hard-crash uncheckpointed accounting is not lossless.
+
 - The user clarified that only Clash Verge / Mihomo client support is required. Existing sing-box
   output may remain, but new protocol acceptance must demonstrate native Mihomo interoperability.
-- AnyTLS + ShadowTLS runtime, managed creation, subscriptions and shared-443 integration. The
-  secure native-Mihomo transport and server accounting proof now pass, but persistent Agent
-  reconciliation/accounting, certificate lifecycle and topology-wrapper preservation are still
-  required before exposing this option; see anytls-shadowtls-investigation.md.
+- AnyTLS + ShadowTLS backend-managed creation/reconciliation, subscriptions and shared-443
+  integration. The opt-in Agent runtime now passes native tests, but certificate lifecycle,
+  simultaneous Xray billing, full API/image acceptance and topology-wrapper preservation are
+  still required before exposing this option; see anytls-shadowtls-investigation.md.
 - Deliver every Agent artifact/image through the panel instead of direct registry/download access.
 - Full panel/API/Agent/browser acceptance for reverse-proxy management, actual shared-443 Xray
   traffic, public certificate issuance, restarts and recovery. See node-edge-settings.md.
