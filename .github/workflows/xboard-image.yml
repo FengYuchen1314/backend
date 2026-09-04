@@ -78,6 +78,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify application dependency wiring and OpenAPI generation
+        run: npm run generate:openapi && test -s openapi.json
+
   build:
     name: Build and publish test image
     if: github.repository == 'FengYuchen1314/backend'
