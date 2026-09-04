@@ -117,6 +117,8 @@ test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars'
     assert.match(script, /http:\/\/127\.0\.0\.1:18443 \{\n    bind 127\.0\.0\.1/);
     assert.match(script, /\.\/edge:\/var\/lib\/remnanode\/edge/);
     assert.match(script, /edge-run:\/var\/run\/xboard-edge/g);
+    assert.match(script, /haproxy:\n    image: [^\n]+\n    user: "0:0"/);
+    assert.match(script, /user haproxy\n    group haproxy/);
 });
 
 test('leased-line installer uses embedded isolated Mieru with persistent instance state', () => {

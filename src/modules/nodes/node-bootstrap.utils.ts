@@ -112,6 +112,7 @@ export function renderNodeBootstrapInstaller(
         ? `
   haproxy:
     image: ${HAPROXY_BOOTSTRAP_IMAGE}
+    user: "0:0"
     container_name: xboard-edge-haproxy
     hostname: xboard-edge-haproxy
     network_mode: host
@@ -175,6 +176,8 @@ cat >"\${INSTALL_DIR}/edge/haproxy.cfg" <<'XBOARD_EDGE_HAPROXY'
 global
     log stdout format raw local0
     master-worker
+    user haproxy
+    group haproxy
 
 defaults
     log global
