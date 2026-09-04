@@ -1,3 +1,4 @@
+export * from './create-bootstrap.command';
 export * from './disable.command';
 export * from './enable.command';
 export * from './reorder.command';

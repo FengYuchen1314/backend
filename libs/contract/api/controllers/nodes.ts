@@ -11,6 +11,7 @@ export const NODES_ROUTES = {
     DELETE: (uuid: string) => `${uuid}`, // delete by UUID
 
     ACTIONS: {
+        CREATE_BOOTSTRAP: `${NODE_ACTIONS_ROUTE}/bootstrap`,
         ENABLE: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/enable`,
         DISABLE: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/disable`,
         RESTART: (uuid: string) => `${uuid}/${NODE_ACTIONS_ROUTE}/restart`,
@@ -27,5 +28,8 @@ export const NODES_ROUTES = {
 
     TAGS: {
         GET: 'tags',
+    },
+    BOOTSTRAP: {
+        REDEEM: 'bootstrap/redeem',
     },
 } as const;

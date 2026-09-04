@@ -10,6 +10,7 @@ import {
     buildResourceScope,
     EndpointDetails,
     normalizeControllerUrl,
+    ROLE,
     SCOPE_ACTION,
     SCOPE_WILDCARD,
 } from '@libs/contracts/constants';
@@ -63,6 +64,14 @@ export class ScopeCatalogService implements OnApplicationBootstrap {
             const methodNames = this.metadataScanner.getAllMethodNames(prototype);
 
             for (const methodName of methodNames) {
+                const roles = this.reflector.getAllAndOverride<string[]>(ROLE, [
+                    prototype[methodName],
+                    metatype,
+                ]);
+                if (roles && !roles.includes(ROLE.API)) {
+                    continue;
+                }
+
                 const details = this.reflector.get<EndpointDetails | undefined>(
                     SCOPE_ENDPOINT,
                     prototype[methodName],

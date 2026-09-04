@@ -35,11 +35,11 @@ export class GetMetadataResponseModel {
             backend: {
                 commitSha: data.backendCommitSha,
                 branch: data.branch,
-                commitUrl: `https://github.com/remnawave/backend/commit/${data.backendCommitSha}`,
+                commitUrl: `https://github.com/FengYuchen1314/backend/commit/${data.backendCommitSha}`,
             },
             frontend: {
                 commitSha: data.frontendCommitSha,
-                commitUrl: `https://github.com/remnawave/frontend/commit/${data.frontendCommitSha}`,
+                commitUrl: `https://github.com/FengYuchen1314/frontend/commit/${data.frontendCommitSha}`,
             },
         };
     }

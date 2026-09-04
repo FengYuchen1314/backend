@@ -10,3 +10,5 @@ export * from './testers';
 export * from './tools';
 export * from './get-http-stats.command';
 export * from './get-configuration.command';
+export * from './get-update-status.command';
+export * from './trigger-update.command';

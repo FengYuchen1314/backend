@@ -5,6 +5,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { SubscriptionResponseRulesModule } from '@modules/subscription-response-rules/subscription-response-rules.module';
 
 import { RouteCounterInterceptor } from './interceptors/route-counter.interceptor';
+import { PanelUpdaterService } from './panel-updater.service';
 import { RouteCounterService } from './route-counter.service';
 import { SystemController } from './system.controller';
 import { SystemService } from './system.service';
@@ -14,6 +15,7 @@ import { SystemService } from './system.service';
     controllers: [SystemController],
     providers: [
         SystemService,
+        PanelUpdaterService,
         RouteCounterService,
         {
             provide: APP_INTERCEPTOR,

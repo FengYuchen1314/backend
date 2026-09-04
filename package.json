@@ -32,6 +32,7 @@
     "format:fix": "oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "test": "tsx --test src/modules/nodes/node-bootstrap.test.ts",
     "check": "oxfmt --check && oxlint",
     "fix": "oxfmt && oxlint --fix"
   },
@@ -140,6 +141,7 @@
     "prisma-kysely": "2.3.0",
     "run-script-webpack-plugin": "^0.2.3",
     "ts-checker-rspack-plugin": "^1.6.1",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "webpack-node-externals": "^3.0.0"
   },

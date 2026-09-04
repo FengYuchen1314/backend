@@ -92,6 +92,45 @@ export const configSchema = z
         IS_HTTP_LOGGING_ENABLED: booleanString('false'),
         ENABLE_DEBUG_LOGS: booleanString('false'),
         REMNAWAVE_BRANCH: z.string().default('dev'),
+        UPDATER_URL: z.preprocess(
+            (value) => (value === '' ? undefined : value),
+            z
+                .url()
+                .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+                    message: 'UPDATER_URL must use http or https',
+                })
+                .refine(
+                    (value) => {
+                        const url = new URL(value);
+                        return !url.username && !url.password && !url.search && !url.hash;
+                    },
+                    {
+                        message:
+                            'UPDATER_URL must not include credentials, query parameters or a fragment',
+                    },
+                )
+                .optional(),
+        ),
+        UPDATER_SECRET: z.preprocess(
+            (value) => (value === '' ? undefined : value),
+            z
+                .string()
+                .min(32, 'UPDATER_SECRET must be at least 32 characters long')
+                .max(512, 'UPDATER_SECRET must not exceed 512 characters')
+                .regex(
+                    /^[\x21-\x7E]+$/,
+                    'UPDATER_SECRET must contain printable ASCII characters only',
+                )
+                .optional(),
+        ),
+        UPDATER_TIMEOUT_MS: z
+            .string()
+            .default('8000')
+            .transform((value) => Number(value))
+            .refine(
+                (value) => Number.isInteger(value) && value >= 1_000 && value <= 30_000,
+                'UPDATER_TIMEOUT_MS must be an integer between 1000 and 30000',
+            ),
         SERVICE_CLEAN_USAGE_HISTORY: booleanString('false'),
         SERVICE_DISABLE_USER_USAGE_RECORDS: booleanString('false'),
         SERVICE_DISABLE_SRH_RECORDS: booleanString('false'),
@@ -155,6 +194,24 @@ export const configSchema = z
             .pipe(z.array(z.number()).optional()),
     })
     .superRefine((data, ctx) => {
+        if (data.UPDATER_URL && !data.UPDATER_SECRET) {
+            ctx.issues.push({
+                input: data,
+                code: 'custom',
+                message: 'UPDATER_SECRET is required when UPDATER_URL is configured',
+                path: ['UPDATER_SECRET'],
+            });
+        }
+
+        if (!data.UPDATER_URL && data.UPDATER_SECRET) {
+            ctx.issues.push({
+                input: data,
+                code: 'custom',
+                message: 'UPDATER_URL is required when UPDATER_SECRET is configured',
+                path: ['UPDATER_URL'],
+            });
+        }
+
         if (!data.REDIS_SOCKET && (!data.REDIS_HOST || !data.REDIS_PORT)) {
             ctx.issues.push({
                 input: data,

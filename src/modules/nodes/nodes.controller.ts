@@ -1,9 +1,12 @@
+import type { Request } from 'express';
+
 import { CONTROLLERS_INFO, NODES_CONTROLLER } from '@contract/api';
 import { ROLE } from '@contract/constants';
 
-import { Body, Controller, HttpStatus, Param, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpStatus, Param, Req, UseFilters, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import { TypedConfigService } from '@common/config/app-config/typed-config.service';
 import { Endpoint } from '@common/decorators/base-endpoint';
 import { Roles } from '@common/decorators/roles/roles';
 import { ApiScopeResource } from '@common/decorators/scopes';
@@ -28,6 +31,7 @@ import {
     UpdateNodeCommand,
     BulkNodesActionsCommand,
     BulkNodesUpdateCommand,
+    CreateNodeBootstrapCommand,
 } from '@libs/contracts/commands';
 
 import {
@@ -49,8 +53,11 @@ import {
     RestartAllNodesBodyDto,
     ReorderNodesResponseDto,
     NodeResponseDto,
+    CreateNodeBootstrapBodyDto,
+    CreateNodeBootstrapResponseDto,
 } from './dtos';
 import { GetAllNodesTagsResponseModel } from './models';
+import { NodeBootstrapService } from './node-bootstrap.service';
 import { NodesService } from './nodes.service';
 
 @ApiBearerAuth('Authorization')
@@ -61,7 +68,31 @@ import { NodesService } from './nodes.service';
 @UseFilters(HttpExceptionFilter)
 @Controller(NODES_CONTROLLER)
 export class NodesController {
-    constructor(private readonly nodesService: NodesService) {}
+    constructor(
+        private readonly nodesService: NodesService,
+        private readonly nodeBootstrapService: NodeBootstrapService,
+        private readonly configService: TypedConfigService,
+    ) {}
+
+    @Endpoint({
+        type: CreateNodeBootstrapResponseDto,
+        command: CreateNodeBootstrapCommand,
+        httpCode: HttpStatus.CREATED,
+    })
+    @Roles(ROLE.ADMIN)
+    async createNodeBootstrap(
+        @Body() body: CreateNodeBootstrapBodyDto,
+        @Req() request: Request,
+    ): Promise<CreateNodeBootstrapResponseDto> {
+        const result = await this.nodeBootstrapService.create(body.nodePort, {
+            configuredDomain: this.configService.get('PANEL_DOMAIN'),
+            forwardedHost: request.headers['x-forwarded-host'] ?? request.headers.host,
+            forwardedProtocol: request.headers['x-forwarded-proto'] ?? request.protocol,
+        });
+
+        const data = errorHandler(result);
+        return { response: data };
+    }
 
     @Endpoint({
         type: GetNodesTagsResponseDto,

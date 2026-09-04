@@ -7,6 +7,7 @@ export * from './get-nodes-tags.dto';
 export * from './get-node.dto';
 export * from './node-bulk-actions.dto';
 export * from './node-bulk-update.dto';
+export * from './node-bootstrap.dto';
 export * from './profile-modification.dto';
 export * from './reorder.dto';
 export * from './reset-traffic.request.dto';

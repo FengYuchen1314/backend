@@ -34,6 +34,8 @@ import {
     GetHttpStatsCommand,
     TestSrrMatcherCommand,
     GetConfigurationCommand,
+    GetUpdateStatusCommand,
+    TriggerUpdateCommand,
 } from '@libs/contracts/commands';
 import { ROLE } from '@libs/contracts/constants';
 
@@ -53,7 +55,10 @@ import {
     GetStatsDigestQueryDto,
     GetStatsDigestResponseDto,
     GetConfigurationResponseDto,
+    GetUpdateStatusResponseDto,
+    TriggerUpdateResponseDto,
 } from './dtos';
+import { PanelUpdaterService } from './panel-updater.service';
 import { RouteCounterService } from './route-counter.service';
 import { SystemService } from './system.service';
 
@@ -68,6 +73,7 @@ export class SystemController {
     constructor(
         private readonly systemService: SystemService,
         private readonly routeCounterService: RouteCounterService,
+        private readonly panelUpdaterService: PanelUpdaterService,
     ) {}
 
     @Endpoint({
@@ -91,6 +97,36 @@ export class SystemController {
     })
     async getConfiguration(): Promise<GetConfigurationResponseDto> {
         const result = await this.systemService.getConfiguration();
+
+        const data = errorHandler(result);
+        return {
+            response: data,
+        };
+    }
+
+    @Roles(ROLE.ADMIN)
+    @Endpoint({
+        command: GetUpdateStatusCommand,
+        httpCode: HttpStatus.OK,
+        type: GetUpdateStatusResponseDto,
+    })
+    async getUpdateStatus(): Promise<GetUpdateStatusResponseDto> {
+        const result = await this.panelUpdaterService.getStatus();
+
+        const data = errorHandler(result);
+        return {
+            response: data,
+        };
+    }
+
+    @Roles(ROLE.ADMIN)
+    @Endpoint({
+        command: TriggerUpdateCommand,
+        httpCode: HttpStatus.OK,
+        type: TriggerUpdateResponseDto,
+    })
+    async triggerUpdate(): Promise<TriggerUpdateResponseDto> {
+        const result = await this.panelUpdaterService.triggerUpdate();
 
         const data = errorHandler(result);
         return {

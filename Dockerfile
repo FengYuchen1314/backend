@@ -3,11 +3,15 @@ WORKDIR /opt/frontend
 
 ARG BRANCH=main
 ARG FRONTEND_URL=https://github.com/remnawave/frontend/releases/latest/download/remnawave-frontend.zip
+ARG FRONTEND_COMMIT=unknown
+ARG FRONTEND_SHA256=
 ARG SINGBOX_SCHEMA_URL=https://github.com/BlackDuty/sing-box-schema/releases/download/v1.13.13/schema.json
 ARG MIHOMO_SCHEMA_URL=https://github.com/dongchengjie/meta-json-schema/releases/download/v1.19.29/meta-json-schema.json
 
 RUN apk add --no-cache curl unzip ca-certificates \
-    && curl -L ${FRONTEND_URL} -o frontend.zip \
+    && test -n "${FRONTEND_COMMIT}" \
+    && curl --fail --location --proto '=https' --tlsv1.2 "${FRONTEND_URL}" -o frontend.zip \
+    && if [ -n "${FRONTEND_SHA256}" ]; then echo "${FRONTEND_SHA256}  frontend.zip" | sha256sum -c -; fi \
     && unzip frontend.zip -d frontend_temp \
     && curl -L https://validator.remna.dev/wasm_exec.js -o frontend_temp/dist/assets/wasm_exec.js \
     && curl -L https://validator.remna.dev/xray.schema.json -o frontend_temp/dist/assets/xray.schema.json \
@@ -55,10 +59,12 @@ RUN cd node_modules/@prisma/client/runtime && \
 
 FROM node:24.20-trixie-slim
 
+ARG SOURCE_REPOSITORY=https://github.com/remnawave/backend
+
 LABEL org.opencontainers.image.title="Remnawave"
 LABEL org.opencontainers.image.description="Powerful proxy management tool"
-LABEL org.opencontainers.image.url="https://github.com/remnawave/backend"
-LABEL org.opencontainers.image.source="https://github.com/remnawave/backend"
+LABEL org.opencontainers.image.url="${SOURCE_REPOSITORY}"
+LABEL org.opencontainers.image.source="${SOURCE_REPOSITORY}"
 LABEL org.opencontainers.image.vendor="Remnawave"
 LABEL org.opencontainers.image.licenses="AGPL-3.0"
 LABEL org.opencontainers.image.documentation="https://docs.rw"
