@@ -17,7 +17,17 @@ tar --extract --gzip --file "$client_dir/singbox.tar.gz" --directory "$client_di
   --no-same-owner --no-same-permissions 'sing-box-1.14.0-linux-amd64/sing-box'
 chmod 700 "$client_dir/sing-box-1.14.0-linux-amd64/sing-box"
 
-RW_TOPOLOGY_INTEGRATION=1 \
-RW_MIHOMO_BINARY="$client_dir/mihomo" \
-RW_SINGBOX_BINARY="$client_dir/sing-box-1.14.0-linux-amd64/sing-box" \
+export RW_TOPOLOGY_INTEGRATION=1
+export RW_MIHOMO_BINARY="$client_dir/mihomo"
+export RW_SINGBOX_BINARY="$client_dir/sing-box-1.14.0-linux-amd64/sing-box"
+if [[ -n "${RW_TOPOLOGY_TEST_BUNDLE:-}" ]]; then
+  node --test "$RW_TOPOLOGY_TEST_BUNDLE"
+else
   npx tsx --test src/modules/subscription-template/generators/topology-clients.linux.test.ts
+fi
+
+if [[ -n "${RW_TOPOLOGY_EXPORT_DIR:-}" ]]; then
+  mkdir -p "$RW_TOPOLOGY_EXPORT_DIR"
+  cp "$RW_MIHOMO_BINARY" "$RW_TOPOLOGY_EXPORT_DIR/mihomo"
+  cp "$RW_SINGBOX_BINARY" "$RW_TOPOLOGY_EXPORT_DIR/sing-box"
+fi

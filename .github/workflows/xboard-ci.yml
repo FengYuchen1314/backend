@@ -116,3 +116,25 @@ jobs:
 
       - name: Verify application dependency wiring and OpenAPI generation
         run: npm run generate:openapi && test -s openapi.json
+
+      - name: Compile and verify the portable VPS acceptance bundle
+        env:
+          RW_TOPOLOGY_TEST_BUNDLE: test-dist/topology-clients.test.cjs
+          RW_TOPOLOGY_EXPORT_DIR: test-dist/clients
+        run: |
+          npm run build:topology-test
+          bash scripts/test-topology-clients.sh
+          printf '%s\n' "$GITHUB_SHA" > test-dist/SOURCE_COMMIT
+          cp scripts/vps-topology-smoke.sh test-dist/
+          tar --create --gzip --file topology-acceptance.tar.gz --directory test-dist .
+          sha256sum topology-acceptance.tar.gz > topology-acceptance.tar.gz.sha256
+
+      - name: Upload the checksum-verified acceptance bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: topology-acceptance-${{ github.sha }}
+          path: |
+            topology-acceptance.tar.gz
+            topology-acceptance.tar.gz.sha256
+          retention-days: 7
+          if-no-files-found: error
