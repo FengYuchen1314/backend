@@ -9,7 +9,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AxiosService } from '@common/axios/axios.service';
 import { RawCacheService } from '@common/raw-cache';
 import { formatExecutionTime, getTime } from '@common/utils/get-elapsed-time';
-import { CACHE_KEYS, CACHE_KEYS_TTL, EVENTS } from '@libs/contracts/constants';
+import { CACHE_KEYS, CACHE_KEYS_TTL, EVENTS, SERVER_TYPES } from '@libs/contracts/constants';
+import { TNodeEdgePlan } from '@libs/contracts/models';
 
 import { NodeEvent } from '@integration-modules/notifications/interfaces';
 
@@ -17,7 +18,9 @@ import { GetResolvedIntegrationsQuery } from '@modules/node-integrations/queries
 import { mergeNodeIntegrations } from '@modules/node-integrations/utils';
 import { GetPluginByUuidQuery } from '@modules/node-plugins/queries/get-plugin-by-uuid';
 import { UpdateNodeCommand } from '@modules/nodes/commands/update-node';
+import { prepareNodeEdge } from '@modules/nodes/edge/node-edge-plan';
 import { GetNodeByUuidQuery } from '@modules/nodes/queries/get-node-by-uuid';
+import { GetNodeEdgeSettingsQuery } from '@modules/nodes/queries/get-node-edge-settings';
 import {
     GetPreparedConfigWithUsersQuery,
     IGetPreparedConfigWithUsersResponse,
@@ -264,12 +267,65 @@ export class StartNodeProcessor extends WorkerHost {
                         .filter((integration) => integration !== undefined),
                 );
                 const xrayConfig = config.response as IGetPreparedConfigWithUsersResponse;
+                let effectiveXrayConfig = xrayConfig.config as unknown as Record<string, unknown>;
+                let edgePlan: TNodeEdgePlan | undefined;
+                let emptyConfigHash = xrayConfig.hashesPayload.emptyConfig;
+
+                if (node.serverType === SERVER_TYPES.PUBLIC_DIRECT) {
+                    const edgeSettingsResult = await this.queryBus.execute(
+                        new GetNodeEdgeSettingsQuery(node.id),
+                    );
+                    if (!edgeSettingsResult.isOk) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            edgeSettingsResult.message ?? 'Invalid shared-443 edge settings.',
+                        );
+                        return;
+                    }
+
+                    const edgeStatusResult = await this.axios.getNodeEdgeStatus(connection);
+                    if (
+                        !edgeStatusResult.isOk ||
+                        !edgeStatusResult.response.available ||
+                        !edgeStatusResult.response.haproxy ||
+                        !edgeStatusResult.response.caddy
+                    ) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            edgeStatusResult.isOk
+                                ? 'This public-direct node is missing the managed HAProxy/Caddy edge runtime. Generate a fresh Agent install command and update the node before using shared port 443.'
+                                : `Shared-443 capability check failed: ${edgeStatusResult.message ?? 'unknown error'}`,
+                        );
+                        return;
+                    }
+
+                    try {
+                        const preparedEdge = prepareNodeEdge(
+                            effectiveXrayConfig,
+                            node.activeInbounds,
+                            edgeSettingsResult.response,
+                        );
+                        effectiveXrayConfig = preparedEdge.config;
+                        edgePlan = preparedEdge.plan;
+                        emptyConfigHash = `${emptyConfigHash}:edge:${preparedEdge.fingerprint}`;
+                    } catch (error) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            `Shared-443 plan is invalid: ${getErrorMessage(error)}`,
+                        );
+                        return;
+                    }
+                }
 
                 startNodeResult = await this.axios.startXray(
                     {
-                        xrayConfig: xrayConfig.config as unknown as Record<string, unknown>,
+                        xrayConfig: effectiveXrayConfig,
+                        edgePlan,
                         internals: {
-                            hashes: xrayConfig.hashesPayload,
+                            hashes: {
+                                ...xrayConfig.hashesPayload,
+                                emptyConfig: emptyConfigHash,
+                            },
                             forceRestart: force ?? false,
                             metadata: {
                                 uuid: node.uuid,
@@ -371,4 +427,21 @@ export class StartNodeProcessor extends WorkerHost {
             }
         }
     }
+
+    private async markStartFailure(nodeUuid: string, message: string): Promise<void> {
+        await this.commandBus.execute(
+            new UpdateNodeCommand({
+                uuid: nodeUuid,
+                lastStatusMessage: message,
+                lastStatusChange: new Date(),
+                isConnected: false,
+                isConnecting: false,
+            }),
+        );
+        this.logger.error(`Failed to start node ${nodeUuid}: ${message}`);
+    }
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }

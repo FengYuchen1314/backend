@@ -7,7 +7,9 @@ import { ERRORS, SERVER_TYPES } from '@libs/contracts/constants';
 import { NodeBootstrapService } from './node-bootstrap.service';
 import {
     buildNodeBootstrapInstallCommand,
+    CADDY_BOOTSTRAP_IMAGE,
     getNodeBootstrapCacheKey,
+    HAPROXY_BOOTSTRAP_IMAGE,
     NODE_BOOTSTRAP_IMAGE,
     NODE_BOOTSTRAP_TTL_SECONDS,
     normalizePanelOrigin,
@@ -87,6 +89,34 @@ test('installer writes protected panel-provided env and compose templates', () =
     assert.doesNotMatch(script, /ghcr\.io\/enfein\/mita|MITA_UDS_PATH/);
 });
 
+test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars', () => {
+    const script = renderNodeBootstrapInstaller(
+        2_222,
+        VALID_NODE_SECRET,
+        SERVER_TYPES.PUBLIC_DIRECT,
+    );
+
+    assert.match(script, new RegExp(HAPROXY_BOOTSTRAP_IMAGE.replaceAll('.', '\\.')));
+    assert.match(script, new RegExp(CADDY_BOOTSTRAP_IMAGE.replaceAll('.', '\\.')));
+    assert.match(script, /EDGE_ENABLED=true/);
+    assert.match(script, /EDGE_CONFIG_DIR=\/var\/lib\/remnanode\/edge/);
+    assert.match(
+        script,
+        /EDGE_HAPROXY_MASTER_SOCKET=\/var\/run\/xboard-edge\/haproxy-master\.sock/,
+    );
+    assert.match(script, /EDGE_CADDY_ADMIN_URL=http:\/\/127\.0\.0\.1:2019/);
+    assert.match(script, /bind :80/);
+    assert.match(script, /bind :443/);
+    assert.match(script, /tcp-request inspect-delay 5s/);
+    assert.match(script, /default_backend xboard_caddy_https/);
+    assert.match(script, /haproxy-master\.sock/);
+    assert.match(script, /127\.0\.0\.1:18080/);
+    assert.match(script, /127\.0\.0\.1:18443/);
+    assert.match(script, /admin 127\.0\.0\.1:2019/);
+    assert.match(script, /\.\/edge:\/var\/lib\/remnanode\/edge/);
+    assert.match(script, /edge-run:\/var\/run\/xboard-edge/g);
+});
+
 test('leased-line installer adds a pinned Mita sidecar with a shared UDS volume', () => {
     const script = renderNodeBootstrapInstaller(2_222, VALID_NODE_SECRET, SERVER_TYPES.LEASED_LINE);
 
@@ -103,6 +133,7 @@ test('leased-line installer adds a pinned Mita sidecar with a shared UDS volume'
     assert.match(script, /condition: service_healthy/);
     assert.match(script, /mita-config:\/etc\/mita/);
     assert.match(script, /mita-data:\/var\/lib\/mita/);
+    assert.doesNotMatch(script, /EDGE_ENABLED|haproxy-master|xboard-edge-caddy/);
 });
 
 test('bootstrap token is hashed at rest and can be redeemed only once', async () => {

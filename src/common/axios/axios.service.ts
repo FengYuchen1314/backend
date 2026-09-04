@@ -1,8 +1,11 @@
 import { ERRORS } from '@contract/constants';
 import {
     CAMOUFLAGE_DOMAIN_AGENT_VALIDATION_PATH,
+    NODE_EDGE_STATUS_PATH,
     TCamouflageDomainAgentValidationReport,
     TCamouflageDomainAgentValidationRequest,
+    TNodeEdgePlan,
+    TNodeEdgeStatusResponse,
 } from '@contract/models';
 import axios, {
     AxiosError,
@@ -269,7 +272,7 @@ export class AxiosService {
      */
 
     public async startXray(
-        data: StartXrayCommand.Request,
+        data: StartXrayCommand.Request & { edgePlan?: TNodeEdgePlan },
         opts: INodeConnectionOpts,
     ): Promise<TResult<StartXrayCommand.Response['response']>> {
         return this.request<StartXrayCommand.Response>({
@@ -280,6 +283,19 @@ export class AxiosService {
             compress: true,
             logAxiosError: false,
             timeout: 60_000,
+        });
+    }
+
+    public async getNodeEdgeStatus(
+        opts: INodeConnectionOpts,
+    ): Promise<TResult<TNodeEdgeStatusResponse>> {
+        return this.request<{ response: TNodeEdgeStatusResponse }>({
+            label: 'GET NODE EDGE STATUS',
+            path: NODE_EDGE_STATUS_PATH,
+            opts,
+            method: 'get',
+            logAxiosError: false,
+            timeout: 15_000,
         });
     }
 

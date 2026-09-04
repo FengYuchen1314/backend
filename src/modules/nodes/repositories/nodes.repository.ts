@@ -377,6 +377,15 @@ export class NodesRepository implements ICrud<NodesEntity> {
         return hosts.flatMap(({ address, sni }) => (sni ? [address, sni] : [address]));
     }
 
+    public async findMetadataByNodeId(nodeId: bigint): Promise<unknown | null> {
+        const nodeMeta = await this.prisma.tx.nodeMeta.findUnique({
+            where: { nodeId },
+            select: { metadata: true },
+        });
+
+        return nodeMeta?.metadata ?? null;
+    }
+
     public async getEnabledNodesByPluginUuid(pluginUuid: string): Promise<string[]> {
         const result = await this.qb.kysely
             .selectFrom('nodes')

@@ -4,6 +4,7 @@ import { GetAllNodesHandler } from './get-all-nodes';
 import { GetEnabledNodesHandler } from './get-enabled-nodes';
 import { GetEnabledNodesPartialHandler } from './get-enabled-nodes-partial/get-enabled-nodes-partial.handler';
 import { GetNodeByUuidHandler } from './get-node-by-uuid';
+import { GetNodeEdgeSettingsHandler } from './get-node-edge-settings';
 import { GetNodeIdByUuidHandler } from './get-node-id-by-uuid';
 import { GetNodesByCriteriaHandler } from './get-nodes-by-criteria';
 import { GetNodesByPluginUuidHandler } from './get-nodes-by-plugin-uuid';
@@ -19,6 +20,7 @@ export const QUERIES = [
     GetAllNodesHandler,
     CountOnlineUsersHandler,
     GetNodeByUuidHandler,
+    GetNodeEdgeSettingsHandler,
     FindNodesByCriteriaHandler,
     GetEnabledNodesPartialHandler,
     GetNodesByPluginUuidHandler,

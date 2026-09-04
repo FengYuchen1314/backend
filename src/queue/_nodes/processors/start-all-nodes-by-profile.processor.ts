@@ -8,7 +8,8 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 import { AxiosService } from '@common/axios/axios.service';
 import { RawCacheService } from '@common/raw-cache';
-import { CACHE_KEYS, CACHE_KEYS_TTL } from '@libs/contracts/constants';
+import { CACHE_KEYS, CACHE_KEYS_TTL, SERVER_TYPES } from '@libs/contracts/constants';
+import { TNodeEdgePlan } from '@libs/contracts/models';
 
 import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 import { GetResolvedIntegrationsQuery } from '@modules/node-integrations/queries/get-resolved-integrations';
@@ -17,7 +18,9 @@ import { NodePluginEntity } from '@modules/node-plugins/entities';
 import { GetAllPluginsQuery } from '@modules/node-plugins/queries/get-all-plugins';
 import { NodesEntity } from '@modules/nodes';
 import { UpdateNodeCommand } from '@modules/nodes/commands/update-node';
+import { prepareNodeEdge } from '@modules/nodes/edge/node-edge-plan';
 import { FindNodesByCriteriaQuery } from '@modules/nodes/queries/find-nodes-by-criteria';
+import { GetNodeEdgeSettingsQuery } from '@modules/nodes/queries/get-node-edge-settings';
 import { GetPreparedConfigWithUsersQuery } from '@modules/users/queries/get-prepared-config-with-users/get-prepared-config-with-users.query';
 
 import { NodesQueuesService } from '@queue/_nodes';
@@ -333,19 +336,75 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
                     (inbound) => activeNodeInboundsTags.has(inbound.tag),
                 );
 
+                const connection = {
+                    address: node.address,
+                    port: node.port,
+                    proxyUrl: node.proxyUrl,
+                };
+                let effectiveXrayConfig = {
+                    ...config.response.config,
+                    inbounds: config.response.config.inbounds!.filter(
+                        (inbound) =>
+                            activeNodeInboundsTags.has(inbound.tag!) ||
+                            this.isUnsecureInbound(inbound.protocol),
+                    ),
+                } as unknown as Record<string, unknown>;
+                let edgePlan: TNodeEdgePlan | undefined;
+                let emptyConfigHash = config.response.hashesPayload.emptyConfig;
+
+                if (node.serverType === SERVER_TYPES.PUBLIC_DIRECT) {
+                    const edgeSettingsResult = await this.queryBus.execute(
+                        new GetNodeEdgeSettingsQuery(node.id),
+                    );
+                    if (!edgeSettingsResult.isOk) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            edgeSettingsResult.message ?? 'Invalid shared-443 edge settings.',
+                        );
+                        return;
+                    }
+
+                    const edgeStatusResult = await this.axios.getNodeEdgeStatus(connection);
+                    if (
+                        !edgeStatusResult.isOk ||
+                        !edgeStatusResult.response.available ||
+                        !edgeStatusResult.response.haproxy ||
+                        !edgeStatusResult.response.caddy
+                    ) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            edgeStatusResult.isOk
+                                ? 'This public-direct node is missing the managed HAProxy/Caddy edge runtime. Generate a fresh Agent install command and update the node before using shared port 443.'
+                                : `Shared-443 capability check failed: ${edgeStatusResult.message ?? 'unknown error'}`,
+                        );
+                        return;
+                    }
+
+                    try {
+                        const preparedEdge = prepareNodeEdge(
+                            effectiveXrayConfig,
+                            node.activeInbounds,
+                            edgeSettingsResult.response,
+                        );
+                        effectiveXrayConfig = preparedEdge.config;
+                        edgePlan = preparedEdge.plan;
+                        emptyConfigHash = `${emptyConfigHash}:edge:${preparedEdge.fingerprint}`;
+                    } catch (error) {
+                        await this.markStartFailure(
+                            node.uuid,
+                            `Shared-443 plan is invalid: ${getErrorMessage(error)}`,
+                        );
+                        return;
+                    }
+                }
+
                 const startXrayResponse = await this.axios.startXray(
                     {
-                        xrayConfig: {
-                            ...config.response.config,
-                            inbounds: config.response.config.inbounds!.filter(
-                                (inbound) =>
-                                    activeNodeInboundsTags.has(inbound.tag!) ||
-                                    this.isUnsecureInbound(inbound.protocol),
-                            ),
-                        } as unknown as Record<string, unknown>,
+                        xrayConfig: effectiveXrayConfig,
+                        edgePlan,
                         internals: {
                             hashes: {
-                                emptyConfig: config.response.hashesPayload.emptyConfig,
+                                emptyConfig: emptyConfigHash,
                                 inbounds: filteredInboundsHashes,
                             },
                             forceRestart: payload.force ?? false,
@@ -359,11 +418,7 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
                             integrations: nodeIntegrations,
                         },
                     },
-                    {
-                        address: node.address,
-                        port: node.port,
-                        proxyUrl: node.proxyUrl,
-                    },
+                    connection,
                 );
 
                 switch (startXrayResponse.isOk) {
@@ -436,4 +491,21 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
     private isUnsecureInbound(protocol: string): boolean {
         return ['dokodemo-door', 'http', 'mixed', 'tun', 'tunnel', 'wireguard'].includes(protocol);
     }
+
+    private async markStartFailure(nodeUuid: string, message: string): Promise<void> {
+        await this.commandBus.execute(
+            new UpdateNodeCommand({
+                uuid: nodeUuid,
+                lastStatusMessage: message,
+                lastStatusChange: new Date(),
+                isConnected: false,
+                isConnecting: false,
+            }),
+        );
+        this.logger.error(`Failed to start node ${nodeUuid}: ${message}`);
+    }
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }
