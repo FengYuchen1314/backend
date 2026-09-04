@@ -98,7 +98,12 @@ async function socksFixture(number: number, allowedPorts: Set<number>) {
             client.write(Buffer.from([5, 0, 0, 1, 127, 0, 0, 1, 0, 0]));
             client.pipe(upstream).pipe(client);
             client.once('close', () => upstream.destroy());
-            upstream.once('close', () => client.destroy());
+            // A normal upstream FIN must flush the queued HTTP response. Destroying
+            // the client here races pipe() and sporadically truncates healthy traffic.
+            upstream.once('close', (hadError) => {
+                if (hadError) client.destroy();
+                else client.end();
+            });
         })().catch(() => client.destroy());
     });
     const port = await listen(server);
@@ -172,13 +177,16 @@ async function requestThrough(port: number, target: number): Promise<string> {
     }
 }
 
-for (const scenario of [
+const scenarios = [
     { format: 'MIHOMO', balanced: false },
     { format: 'MIHOMO', balanced: true },
     { format: 'SINGBOX', balanced: false },
-] as const) {
+] as const;
+for (const scenario of scenarios.flatMap((item) =>
+    [1, 2, 3].map((repetition) => ({ ...item, repetition })),
+)) {
     test(
-        `real ${scenario.format} subscription follows ${scenario.balanced ? 'two balanced entries into one exit' : 'A → B → destination'}`,
+        `real ${scenario.format} subscription follows ${scenario.balanced ? 'two balanced entries into one exit' : 'A → B → destination'} (run ${scenario.repetition})`,
         {
             skip: !enabled,
             timeout: 90_000,
