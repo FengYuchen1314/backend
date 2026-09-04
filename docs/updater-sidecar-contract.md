@@ -144,10 +144,11 @@ Do not deploy `active-compose.yml` to another host. It is local updater state.
   `io.xboard.updater.protocol=1` and the exact fork source label. The first updater-compatible
   image is therefore a manual baseline; the updater will not take over an older or unrelated
   container.
-- Version 1 only automates schema-compatible releases. It verifies that the current database has
-  no pending Prisma migration and compares a bounded, canonical fingerprint of
-  `prisma/schema.prisma` and `prisma/migrations` between the running and target images. A change is
-  rejected and requires a manual, backed-up upgrade.
+- Version 1 only automates database-bootstrap-compatible releases. It verifies that the current
+  database has no pending Prisma migration and compares a bounded, canonical fingerprint of
+  `prisma/schema.prisma`, `prisma/migrations`, the compiled `dist/seed.js`, and the container
+  entrypoint between the running and target images. A schema, migration, data-migration, or
+  bootstrap change is rejected and requires a manual, backed-up upgrade.
 - Automated update and rollback containers set `XBOARD_SKIP_DB_BOOTSTRAP=1`. This skips both
   `prisma migrate deploy` and `prisma db seed`; the updater never claims to reverse a database
   migration. Normal manual starts keep the upstream migration and seeding behavior.

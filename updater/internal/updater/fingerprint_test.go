@@ -30,6 +30,20 @@ func TestDatabaseFingerprintIsDeterministicAndContentSensitive(t *testing.T) {
 	if changedHash == firstHash {
 		t.Fatalf("changed migration did not change fingerprint")
 	}
+	seedBefore, err := databaseFingerprint(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(first, "seed.js"), []byte("runDataMigrationV2();"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedAfter, err := databaseFingerprint(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seedAfter == seedBefore {
+		t.Fatalf("changed compiled seed did not change fingerprint")
+	}
 }
 
 func TestDatabaseFingerprintRejectsIncompleteInput(t *testing.T) {
@@ -53,6 +67,12 @@ func createFingerprintTree(t *testing.T, migration string) string {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(migrationDirectory, "migration.sql"), []byte(migration), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "seed.js"), []byte("runDataMigrationV1();"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "docker-entrypoint.sh"), []byte("#!/bin/sh\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return directory

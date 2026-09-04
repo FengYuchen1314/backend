@@ -128,3 +128,33 @@ func TestDockerComposeRejectsOverrideOutsideStateDirectory(t *testing.T) {
 		t.Fatal("docker was invoked for a rejected override")
 	}
 }
+
+func TestDockerProbeUsesValidatedContainerPorts(t *testing.T) {
+	runner := &recordingRunner{outputs: [][]byte{
+		[]byte(`["APP_PORT=3100","METRICS_PORT=3101"]`),
+		[]byte("healthy"),
+		[]byte("panel"),
+	}}
+	engine := NewDockerEngine(Config{CommandTimeout: time.Second}, runner)
+	if err := engine.probeManagedContainer(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.commands) != 3 {
+		t.Fatalf("command count = %d, want 3", len(runner.commands))
+	}
+	joined := strings.Join(runner.commands[1].arguments, "\x00") + "\n" + strings.Join(runner.commands[2].arguments, "\x00")
+	if !strings.Contains(joined, "http://127.0.0.1:3101/health") || !strings.Contains(joined, "http://127.0.0.1:3100/") {
+		t.Fatalf("custom container ports were not probed: %q", joined)
+	}
+}
+
+func TestDockerProbeRejectsInvalidContainerPort(t *testing.T) {
+	runner := &recordingRunner{outputs: [][]byte{[]byte(`["APP_PORT=70000"]`)}}
+	engine := NewDockerEngine(Config{CommandTimeout: time.Second}, runner)
+	if err := engine.probeManagedContainer(context.Background()); err == nil {
+		t.Fatal("expected invalid APP_PORT to be rejected")
+	}
+	if len(runner.commands) != 1 {
+		t.Fatalf("invalid port should fail before exec, got %d commands", len(runner.commands))
+	}
+}

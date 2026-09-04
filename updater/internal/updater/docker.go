@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -273,16 +274,53 @@ func (engine *DockerEngine) copyDatabaseInputs(ctx context.Context, container, r
 	if _, err := engine.run(ctx, "cp", container+":/opt/app/prisma/migrations/.", filepath.Join(root, "migrations")); err != nil {
 		return fmt.Errorf("copy Prisma migrations: %w", err)
 	}
+	if _, err := engine.run(ctx, "cp", container+":/opt/app/dist/seed.js", filepath.Join(root, "seed.js")); err != nil {
+		return fmt.Errorf("copy compiled database seed: %w", err)
+	}
+	if _, err := engine.run(ctx, "cp", container+":/opt/app/docker-entrypoint.sh", filepath.Join(root, "docker-entrypoint.sh")); err != nil {
+		return fmt.Errorf("copy database bootstrap entrypoint: %w", err)
+	}
 	return nil
 }
 
 func (engine *DockerEngine) probeManagedContainer(ctx context.Context) error {
-	for _, endpoint := range []string{"http://127.0.0.1:3001/health", "http://127.0.0.1:3000/"} {
+	output, err := engine.run(ctx, "inspect", "--format", "{{json .Config.Env}}", ManagedContainer)
+	if err != nil {
+		return fmt.Errorf("inspect managed container ports: %w", err)
+	}
+	var environment []string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(string(output))), &environment); err != nil {
+		return fmt.Errorf("decode managed container environment: %w", err)
+	}
+	appPort, err := containerPort(environment, "APP_PORT", 3000)
+	if err != nil {
+		return err
+	}
+	metricsPort, err := containerPort(environment, "METRICS_PORT", 3001)
+	if err != nil {
+		return err
+	}
+	for _, endpoint := range []string{
+		fmt.Sprintf("http://127.0.0.1:%d/health", metricsPort),
+		fmt.Sprintf("http://127.0.0.1:%d/", appPort),
+	} {
 		if _, err := engine.run(ctx, "exec", ManagedContainer, "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "--max-time", "5", endpoint); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func containerPort(environment []string, name string, fallback int) (int, error) {
+	raw := envValue(environment, name)
+	if raw == "" {
+		return fallback, nil
+	}
+	port, err := strconv.Atoi(raw)
+	if err != nil || port < 1 || port > 65_535 {
+		return 0, fmt.Errorf("managed container %s must be an integer between 1 and 65535", name)
+	}
+	return port, nil
 }
 
 func (engine *DockerEngine) run(ctx context.Context, arguments ...string) ([]byte, error) {
