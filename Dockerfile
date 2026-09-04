@@ -79,6 +79,11 @@ ARG __RW_METADATA_GIT_BRANCH=dev
 ARG __RW_METADATA_BUILD_TIME=2011-11-11T11:11:11Z
 ARG __RW_METADATA_BUILD_NUMBER=0
 
+LABEL org.opencontainers.image.version="${__RW_METADATA_VERSION}"
+LABEL org.opencontainers.image.revision="${__RW_METADATA_GIT_BACKEND_COMMIT}"
+LABEL org.opencontainers.image.created="${__RW_METADATA_BUILD_TIME}"
+LABEL io.xboard.updater.protocol="1"
+
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 ENV REMNAWAVE_BRANCH=${BRANCH}

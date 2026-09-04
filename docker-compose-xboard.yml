@@ -1,0 +1,52 @@
+services:
+  remnawave:
+    image: ghcr.io/fengyuchen1314/backend:xboard-dev
+    environment:
+      UPDATER_URL: http://xboard-updater:8080
+      UPDATER_SECRET: ${UPDATER_SECRET:?UPDATER_SECRET must be configured}
+    networks:
+      - remnawave-network
+      - xboard-updater-control
+
+  xboard-updater:
+    image: ghcr.io/fengyuchen1314/backend-updater:xboard-dev
+    container_name: xboard-updater
+    hostname: xboard-updater
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HOME: /tmp
+      DOCKER_CONFIG: /tmp/.docker
+      UPDATER_SECRET: ${UPDATER_SECRET:?UPDATER_SECRET must be configured}
+      UPDATER_DEPLOY_DIR: ${XBOARD_DEPLOY_DIR:-/opt/remnawave}
+      UPDATER_HEALTH_TIMEOUT_SECONDS: ${UPDATER_HEALTH_TIMEOUT_SECONDS:-180}
+      UPDATER_COMMAND_TIMEOUT_SECONDS: ${UPDATER_COMMAND_TIMEOUT_SECONDS:-600}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${XBOARD_DEPLOY_DIR:-/opt/remnawave}:${XBOARD_DEPLOY_DIR:-/opt/remnawave}:ro
+      - ${XBOARD_DEPLOY_DIR:-/opt/remnawave}/.xboard:${XBOARD_DEPLOY_DIR:-/opt/remnawave}/.xboard:rw
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=0700
+    networks:
+      - xboard-updater-control
+      - xboard-updater-egress
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/xboard-updater', 'healthcheck']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  xboard-updater-control:
+    name: xboard-updater-control
+    driver: bridge
+    internal: true
+  xboard-updater-egress:
+    name: xboard-updater-egress
+    driver: bridge

@@ -4,6 +4,7 @@
 .env
 .idea
 /pgdata
+/.xboard/
 /libs/contract/build
 /libs/contract/node_modules
 /libs/contract/dist
