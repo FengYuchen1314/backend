@@ -224,8 +224,9 @@ export class XrayJsonGeneratorService {
             )) as unknown as XrayJsonConfig;
 
             const configs: XrayJsonConfig[] = [];
+            const compatibleHosts = hosts.filter((host) => host.protocol !== 'mieru');
 
-            for (const host of hosts) {
+            for (const host of compatibleHosts) {
                 if (host.metadata.isHidden) continue;
                 if (host.metadata.excludeFromSubscriptionTypes.includes('XRAY_JSON')) continue;
 
@@ -238,7 +239,7 @@ export class XrayJsonGeneratorService {
                     const injected = this.applyRemnawaveInjector(
                         baseTemplate,
                         host,
-                        hosts,
+                        compatibleHosts,
                         isExtendedClient,
                     );
                     if (injected) configs.push(injected);
@@ -268,6 +269,8 @@ export class XrayJsonGeneratorService {
         isExtendedClient: boolean,
         tag = 'proxy',
     ): XrayJsonConfig | null {
+        if (host.protocol === 'mieru') return null;
+
         try {
             const outbound = this.buildOutbound(host, tag);
 
@@ -342,6 +345,8 @@ export class XrayJsonGeneratorService {
                 return PROTOCOL_BUILDERS.hysteria(host);
             case 'socks':
                 return PROTOCOL_BUILDERS.socks(host);
+            case 'mieru':
+                throw new Error('Mieru is not supported by standard Xray JSON clients.');
         }
     }
 

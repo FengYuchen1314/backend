@@ -18,7 +18,11 @@ import { mergeNodeIntegrations } from '@modules/node-integrations/utils';
 import { GetPluginByUuidQuery } from '@modules/node-plugins/queries/get-plugin-by-uuid';
 import { UpdateNodeCommand } from '@modules/nodes/commands/update-node';
 import { GetNodeByUuidQuery } from '@modules/nodes/queries/get-node-by-uuid';
-import { GetPreparedConfigWithUsersQuery } from '@modules/users/queries/get-prepared-config-with-users';
+import {
+    GetPreparedConfigWithUsersQuery,
+    IGetPreparedConfigWithUsersResponse,
+} from '@modules/users/queries/get-prepared-config-with-users';
+import { GetPreparedMitaConfigWithUsersQuery } from '@modules/users/queries/get-prepared-mita-config-with-users';
 
 import { QUEUES_NAMES } from '@queue/queue.enum';
 
@@ -102,6 +106,15 @@ export class StartNodeProcessor extends WorkerHost {
                 return;
             }
 
+            const mieruInboundCount = node.activeInbounds.filter(
+                (inbound) => inbound.type.toLowerCase() === 'mieru',
+            ).length;
+            const isMieruRuntime = mieruInboundCount === node.activeInbounds.length;
+
+            if (mieruInboundCount > 0 && !isMieruRuntime) {
+                throw new Error('Xray and Mieru inbounds cannot share one physical node runtime.');
+            }
+
             await this.commandBus.execute(
                 new UpdateNodeCommand({
                     uuid: node.uuid,
@@ -157,7 +170,7 @@ export class StartNodeProcessor extends WorkerHost {
                 name: string;
             } | null = null;
 
-            if (node.activePluginUuid) {
+            if (!isMieruRuntime && node.activePluginUuid) {
                 const getNodePluginResult = await this.queryBus.execute(
                     new GetPluginByUuidQuery(node.activePluginUuid),
                 );
@@ -174,41 +187,47 @@ export class StartNodeProcessor extends WorkerHost {
                 };
             }
 
-            const syncNodePluginsResponse = await this.axios.syncNodePlugins(
-                {
-                    plugin,
-                },
-                {
-                    address: node.address,
-                    port: node.port,
-                    proxyUrl: node.proxyUrl,
-                },
-            );
-
-            if (!syncNodePluginsResponse.isOk) {
-                await this.commandBus.execute(
-                    new UpdateNodeCommand({
-                        uuid: node.uuid,
-                        isConnecting: false,
-                        isConnected: false,
-                        lastStatusMessage: `Failed to sync node plugins: ${syncNodePluginsResponse.message}`,
-                        lastStatusChange: new Date(),
-                    }),
+            if (!isMieruRuntime) {
+                const syncNodePluginsResponse = await this.axios.syncNodePlugins(
+                    {
+                        plugin,
+                    },
+                    {
+                        address: node.address,
+                        port: node.port,
+                        proxyUrl: node.proxyUrl,
+                    },
                 );
 
-                this.logger.error(
-                    `Failed to sync node plugins: ${syncNodePluginsResponse.message}`,
-                );
-                return;
+                if (!syncNodePluginsResponse.isOk) {
+                    await this.commandBus.execute(
+                        new UpdateNodeCommand({
+                            uuid: node.uuid,
+                            isConnecting: false,
+                            isConnected: false,
+                            lastStatusMessage: `Failed to sync node plugins: ${syncNodePluginsResponse.message}`,
+                            lastStatusChange: new Date(),
+                        }),
+                    );
+
+                    this.logger.error(
+                        `Failed to sync node plugins: ${syncNodePluginsResponse.message}`,
+                    );
+                    return;
+                }
             }
 
             const startTime = getTime();
-            const config = await this.queryBus.execute(
-                new GetPreparedConfigWithUsersQuery(
-                    node.activeConfigProfileUuid,
-                    node.activeInbounds,
-                ),
-            );
+            const config = isMieruRuntime
+                ? await this.queryBus.execute(
+                      new GetPreparedMitaConfigWithUsersQuery(node.activeInbounds),
+                  )
+                : await this.queryBus.execute(
+                      new GetPreparedConfigWithUsersQuery(
+                          node.activeConfigProfileUuid,
+                          node.activeInbounds,
+                      ),
+                  );
 
             this.logger.log(`Generated config for node in ${formatExecutionTime(startTime)}`);
 
@@ -216,44 +235,55 @@ export class StartNodeProcessor extends WorkerHost {
                 throw new Error('Failed to get config for node');
             }
 
-            const integrationsResult = await this.queryBus.execute(
-                new GetResolvedIntegrationsQuery(node.integrationUuids),
-            );
-
-            if (!integrationsResult.isOk) {
-                throw new Error('Failed to resolve integrations for node');
-            }
-
-            const nodeIntegrations = mergeNodeIntegrations(
-                node.integrationUuids
-                    .map((uuid) => integrationsResult.response.get(uuid))
-                    .filter((integration) => integration !== undefined),
-            );
-
             const reqStartTime = getTime();
 
-            const startNodeResult = await this.axios.startXray(
-                {
-                    xrayConfig: config.response.config as unknown as Record<string, unknown>,
-                    internals: {
-                        hashes: config.response.hashesPayload,
-                        forceRestart: force ?? false,
-                        metadata: {
-                            uuid: node.uuid,
-                            name: node.name,
-                            countryCode: node.countryCode,
-                            id: Number(node.id),
-                            tags: node.tags,
+            const connection = {
+                address: node.address,
+                port: node.port,
+                proxyUrl: node.proxyUrl,
+            };
+            let startNodeResult: Awaited<ReturnType<AxiosService['startXray']>>;
+
+            if (isMieruRuntime) {
+                startNodeResult = await this.axios.startMieru(
+                    { config: config.response as unknown as Record<string, unknown> },
+                    connection,
+                );
+            } else {
+                const integrationsResult = await this.queryBus.execute(
+                    new GetResolvedIntegrationsQuery(node.integrationUuids),
+                );
+
+                if (!integrationsResult.isOk) {
+                    throw new Error('Failed to resolve integrations for node');
+                }
+
+                const nodeIntegrations = mergeNodeIntegrations(
+                    node.integrationUuids
+                        .map((uuid) => integrationsResult.response.get(uuid))
+                        .filter((integration) => integration !== undefined),
+                );
+                const xrayConfig = config.response as IGetPreparedConfigWithUsersResponse;
+
+                startNodeResult = await this.axios.startXray(
+                    {
+                        xrayConfig: xrayConfig.config as unknown as Record<string, unknown>,
+                        internals: {
+                            hashes: xrayConfig.hashesPayload,
+                            forceRestart: force ?? false,
+                            metadata: {
+                                uuid: node.uuid,
+                                name: node.name,
+                                countryCode: node.countryCode,
+                                id: Number(node.id),
+                                tags: node.tags,
+                            },
+                            integrations: nodeIntegrations,
                         },
-                        integrations: nodeIntegrations,
                     },
-                },
-                {
-                    address: node.address,
-                    port: node.port,
-                    proxyUrl: node.proxyUrl,
-                },
-            );
+                    connection,
+                );
+            }
 
             this.logger.log(`Started node in ${formatExecutionTime(reqStartTime)}`);
 
@@ -297,7 +327,9 @@ export class StartNodeProcessor extends WorkerHost {
                     value:
                         nodeResponse.nodeInformation.version && nodeResponse.version
                             ? {
-                                  xray: nodeResponse.version,
+                                  xray: isMieruRuntime
+                                      ? `Mita ${nodeResponse.version}`
+                                      : nodeResponse.version,
                                   node: nodeResponse.nodeInformation.version,
                               }
                             : null,

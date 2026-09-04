@@ -16,6 +16,7 @@ export * from './infra-billing-node.schema';
 export * from './infra-provider.schema';
 export * from './internal-squad.schema';
 export * from './last-connected-node.schema';
+export * from './mieru-profile-config.schema';
 export * from './node-integration.schema';
 export * from './node-plugin.schema';
 export * from './node-ips.schema';

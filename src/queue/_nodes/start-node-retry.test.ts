@@ -89,7 +89,7 @@ test('retryable start rejects when the node reports a request already in progres
         integrationUuids: [],
         activePluginUuid: null,
         activeConfigProfileUuid: 'profile-1',
-        activeInbounds: [{ tag: 'SOCKS' }],
+        activeInbounds: [{ tag: 'SOCKS', type: 'socks' }],
         isConnecting: false,
         isConnected: true,
     };

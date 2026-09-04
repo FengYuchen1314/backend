@@ -5,7 +5,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RawCacheService } from '@common/raw-cache';
 import { fail, ok, TResult } from '@common/types';
 import { CreateNodeBootstrapCommand, RedeemNodeBootstrapCommand } from '@libs/contracts/commands';
-import { ERRORS } from '@libs/contracts/constants';
+import { ERRORS, TServerType } from '@libs/contracts/constants';
 
 import { KeygenService } from '@modules/keygen/keygen.service';
 
@@ -19,6 +19,7 @@ import {
 
 interface NodeBootstrapCachePayload {
     nodePort: number;
+    serverType: TServerType;
 }
 
 export interface NodeBootstrapPanelLocation {
@@ -40,6 +41,7 @@ export class NodeBootstrapService {
 
     public async create(
         nodePort: number,
+        serverType: TServerType,
         panelLocation: NodeBootstrapPanelLocation,
     ): Promise<TResult<NodeBootstrapResponse>> {
         try {
@@ -51,7 +53,7 @@ export class NodeBootstrapService {
             const token = randomBytes(32).toString('base64url');
             await this.rawCacheService.set(
                 getNodeBootstrapCacheKey(token),
-                { nodePort } satisfies NodeBootstrapCachePayload,
+                { nodePort, serverType } satisfies NodeBootstrapCachePayload,
                 NODE_BOOTSTRAP_TTL_SECONDS,
             );
 
@@ -91,7 +93,13 @@ export class NodeBootstrapService {
         }
 
         try {
-            return ok(renderNodeBootstrapInstaller(payload.nodePort, keygen.response.payload));
+            return ok(
+                renderNodeBootstrapInstaller(
+                    payload.nodePort,
+                    keygen.response.payload,
+                    payload.serverType,
+                ),
+            );
         } catch (error) {
             this.logger.error(`Failed to render node bootstrap installer: ${String(error)}`);
             return fail(ERRORS.INTERNAL_SERVER_ERROR);

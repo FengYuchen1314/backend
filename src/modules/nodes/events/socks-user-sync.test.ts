@@ -12,6 +12,7 @@ import { RemoveUsersFromNodeEvent } from './remove-users-from-node';
 import { RemoveUsersFromNodeHandler } from './remove-users-from-node/remove-users-from-node.handler';
 
 const socksInbound = { tag: 'SOCKS', type: 'socks', rawInbound: null };
+const mieruInbound = { tag: 'MIERU', type: 'mieru', rawInbound: null };
 const vlessInbound = { tag: 'VLESS', type: 'vless', rawInbound: null };
 
 const buildNode = (uuid: string, activeInbounds: object[]) => ({
@@ -31,7 +32,7 @@ const user = {
     inbounds: [socksInbound, vlessInbound],
 };
 
-test('single-user add reloads SOCKS nodes and preserves hot update for other nodes', async () => {
+test('single-user add reloads SOCKS and Mieru nodes and preserves Xray hot updates', async () => {
     const starts: unknown[] = [];
     const adds: unknown[] = [];
     const removes: unknown[] = [];
@@ -50,6 +51,7 @@ test('single-user add reloads SOCKS nodes and preserves hot update for other nod
         async findConnectedNodes() {
             return [
                 buildNode('socks-node', [socksInbound]),
+                buildNode('mieru-node', [mieruInbound]),
                 buildNode('vless-node', [vlessInbound]),
             ];
         },
@@ -67,7 +69,10 @@ test('single-user add reloads SOCKS nodes and preserves hot update for other nod
     );
     await handler.handle(new AddUserToNodeEvent(user.id));
 
-    assert.deepEqual(starts, [{ nodeUuid: 'socks-node', force: true, retryIfBusy: true }]);
+    assert.deepEqual(starts, [
+        { nodeUuid: 'socks-node', force: true, retryIfBusy: true },
+        { nodeUuid: 'mieru-node', force: true, retryIfBusy: true },
+    ]);
     assert.equal(adds.length, 1);
     assert.deepEqual(
         (adds[0] as { data: { data: Array<{ tag: string }> } }).data.data.map((item) => item.tag),
@@ -76,7 +81,7 @@ test('single-user add reloads SOCKS nodes and preserves hot update for other nod
     assert.equal(removes.length, 0);
 });
 
-test('bulk add coalesces SOCKS changes into one forced reload per node', async () => {
+test('bulk add coalesces SOCKS and Mieru changes into one forced reload per node', async () => {
     const starts: unknown[] = [];
     const bulkAdds: unknown[] = [];
     const queues = {
@@ -92,6 +97,7 @@ test('bulk add coalesces SOCKS changes into one forced reload per node', async (
         async findConnectedNodes() {
             return [
                 buildNode('socks-node', [socksInbound]),
+                buildNode('mieru-node', [mieruInbound]),
                 buildNode('vless-node', [vlessInbound]),
             ];
         },
@@ -109,16 +115,20 @@ test('bulk add coalesces SOCKS changes into one forced reload per node', async (
     );
     await handler.handle(new AddUsersToNodeEvent([user.id]));
 
-    assert.deepEqual(starts, [{ nodeUuid: 'socks-node', force: true, retryIfBusy: true }]);
+    assert.deepEqual(starts, [
+        { nodeUuid: 'socks-node', force: true, retryIfBusy: true },
+        { nodeUuid: 'mieru-node', force: true, retryIfBusy: true },
+    ]);
     assert.equal(bulkAdds.length, 1);
 });
 
-test('single and bulk removal never call Xray user handlers for SOCKS nodes', async () => {
+test('single and bulk removal never call Xray user handlers for SOCKS or Mieru nodes', async () => {
     const starts: unknown[] = [];
     const singleRemovals: unknown[] = [];
     const bulkRemovals: unknown[] = [];
     const nodes = [
         buildNode('socks-node', [socksInbound]),
+        buildNode('mieru-node', [mieruInbound]),
         buildNode('vless-node', [vlessInbound]),
     ];
     const repository = {
@@ -147,7 +157,9 @@ test('single and bulk removal never call Xray user handlers for SOCKS nodes', as
 
     assert.deepEqual(starts, [
         { nodeUuid: 'socks-node', force: true, retryIfBusy: true },
+        { nodeUuid: 'mieru-node', force: true, retryIfBusy: true },
         { nodeUuid: 'socks-node', force: true, retryIfBusy: true },
+        { nodeUuid: 'mieru-node', force: true, retryIfBusy: true },
     ]);
     assert.equal(singleRemovals.length, 1);
     assert.equal((singleRemovals[0] as unknown[]).length, 1);

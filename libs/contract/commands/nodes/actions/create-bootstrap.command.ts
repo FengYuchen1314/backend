@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { NODES_ROUTES, REST_API } from '../../../api';
-import { getEndpointDetails } from '../../../constants';
+import { getEndpointDetails, SERVER_TYPES } from '../../../constants';
 
 export namespace CreateNodeBootstrapCommand {
     export const url = REST_API.NODES.ACTIONS.CREATE_BOOTSTRAP;
@@ -16,6 +16,7 @@ export namespace CreateNodeBootstrapCommand {
 
     export const RequestBodySchema = z.object({
         nodePort: z.int().min(1).max(65_535).default(2_222),
+        serverType: z.enum(SERVER_TYPES).default(SERVER_TYPES.PUBLIC_DIRECT),
     });
 
     export const ResponseSchema = z.object({

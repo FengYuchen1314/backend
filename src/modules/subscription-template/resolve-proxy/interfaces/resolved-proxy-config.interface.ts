@@ -31,6 +31,15 @@ export interface ISocksProtocolOptions {
     username: string;
 }
 
+export interface IMieruProtocolOptions {
+    handshakeMode: 'HANDSHAKE_STANDARD';
+    mtu: number;
+    multiplexing: 'MULTIPLEXING_LOW';
+    password: string;
+    transportProtocol: 'TCP' | 'UDP';
+    username: string;
+}
+
 // ─── Transport Options ───────────────────────────────────
 
 export interface ITcpTransportOptions {
@@ -125,11 +134,17 @@ export type SocksProtocol = {
     protocolOptions: ISocksProtocolOptions;
 };
 
+export type MieruProtocol = {
+    protocol: 'mieru';
+    protocolOptions: IMieruProtocolOptions;
+};
+
 export type ProtocolVariant =
     | VlessProtocol
     | TrojanProtocol
     | ShadowsocksProtocol
     | HysteriaProtocol
+    | MieruProtocol
     | SocksProtocol;
 
 // ─── Transport Variants ──────────────────────────────────

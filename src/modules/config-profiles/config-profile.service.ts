@@ -4,6 +4,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { Injectable, Logger } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 
+import { isMieruProfileConfig, MieruConfig } from '@common/helpers/mieru-config';
 import { XRayConfig } from '@common/helpers/xray-config';
 import { RawCacheService } from '@common/raw-cache';
 import { fail, ok, TResult } from '@common/types';
@@ -39,9 +40,7 @@ export class ConfigProfileService {
             const configProfiles = await this.configProfileRepository.getAllConfigProfiles();
 
             for (const configProfile of configProfiles) {
-                configProfile.config = new XRayConfig(
-                    configProfile.config as object,
-                ).getSortedConfig();
+                configProfile.config = this.getValidatedConfig(configProfile.config as object);
             }
 
             const total = await this.configProfileRepository.getTotalConfigProfiles();
@@ -63,7 +62,7 @@ export class ConfigProfileService {
                 return fail(ERRORS.CONFIG_PROFILE_NOT_FOUND);
             }
 
-            configProfile.config = new XRayConfig(configProfile.config as object).getSortedConfig();
+            configProfile.config = this.getValidatedConfig(configProfile.config as object);
 
             return ok(new GetConfigProfileByUuidResponseModel(configProfile));
         } catch (error) {
@@ -80,6 +79,11 @@ export class ConfigProfileService {
 
             if (!configProfile) {
                 return fail(ERRORS.CONFIG_PROFILE_NOT_FOUND);
+            }
+
+            if (isMieruProfileConfig(configProfile.config)) {
+                configProfile.config = new MieruConfig(configProfile.config).getConfig();
+                return ok(new GetConfigProfileByUuidResponseModel(configProfile));
             }
 
             const snippetsMap: Map<string, unknown> = new Map();
@@ -142,8 +146,13 @@ export class ConfigProfileService {
                 return fail(ERRORS.RESERVED_CONFIG_PROFILE_NAME);
             }
 
-            const validatedConfig = new XRayConfig(config);
-            const sortedConfig = validatedConfig.getSortedConfig();
+            const validatedConfig = isMieruProfileConfig(config)
+                ? new MieruConfig(config)
+                : new XRayConfig(config);
+            const sortedConfig =
+                validatedConfig instanceof MieruConfig
+                    ? validatedConfig.getConfig()
+                    : validatedConfig.getSortedConfig();
 
             const profileEntity = new ConfigProfileEntity({
                 name,
@@ -269,13 +278,20 @@ export class ConfigProfileService {
         if (config) {
             const existingInbounds = existingConfigProfile.inbounds;
 
-            const validatedConfig = new XRayConfig(config);
+            const validatedConfig = isMieruProfileConfig(config)
+                ? new MieruConfig(config)
+                : new XRayConfig(config);
 
-            validatedConfig.cleanInboundClients(false);
-            validatedConfig.fixIncorrectServerNames();
-            validatedConfig.validateOutbounds();
+            if (validatedConfig instanceof XRayConfig) {
+                validatedConfig.cleanInboundClients(false);
+                validatedConfig.fixIncorrectServerNames();
+                validatedConfig.validateOutbounds();
+            }
 
-            const sortedConfig = validatedConfig.getSortedConfig();
+            const sortedConfig =
+                validatedConfig instanceof MieruConfig
+                    ? validatedConfig.getConfig()
+                    : validatedConfig.getSortedConfig();
             const inbounds = validatedConfig.getAllInbounds();
 
             const inboundsEntities = inbounds.map(
@@ -406,5 +422,11 @@ export class ConfigProfileService {
             this.logger.error(error);
             return fail(ERRORS.SET_ENTITY_TAGS_ERROR);
         }
+    }
+
+    private getValidatedConfig(config: object): object {
+        return isMieruProfileConfig(config)
+            ? new MieruConfig(config).getConfig()
+            : new XRayConfig(config).getSortedConfig();
     }
 }

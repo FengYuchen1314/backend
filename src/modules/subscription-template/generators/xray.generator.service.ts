@@ -12,11 +12,19 @@ interface ShareLink {
     password: string;
     port: number;
     remark: string;
-    scheme: 'hysteria2' | 'ss' | 'trojan' | 'vless';
+    scheme: 'hysteria2' | 'mierus' | 'ss' | 'trojan' | 'vless';
+    username?: string;
 }
 
 const LINK_TARGET_PREFIX = '$link.';
-const LINK_ALLOWED_TARGETS = new Set(['address', 'method', 'password', 'port', 'remark']);
+const LINK_ALLOWED_TARGETS = new Set([
+    'address',
+    'method',
+    'password',
+    'port',
+    'remark',
+    'username',
+]);
 
 interface Hysteria2FinalMask {
     quicParams?: {
@@ -90,6 +98,8 @@ export class XrayGeneratorService {
                 return this.buildShadowsocksLink(host);
             case 'hysteria':
                 return this.buildHysteria2Link(host);
+            case 'mieru':
+                return this.buildMieruLink(host);
             case 'socks':
                 // There is no sufficiently interoperable SOCKS share-link format.
                 // Structured Xray JSON, Mihomo/Clash and sing-box generators handle it instead.
@@ -97,6 +107,25 @@ export class XrayGeneratorService {
             default:
                 return null;
         }
+    }
+
+    private buildMieruLink(host: Extract<ResolvedProxyConfig, { protocol: 'mieru' }>): ShareLink {
+        return {
+            scheme: 'mierus',
+            username: host.protocolOptions.username,
+            password: host.protocolOptions.password,
+            address: host.address,
+            port: host.port,
+            remark: host.finalRemark,
+            params: {
+                profile: host.finalRemark,
+                port: host.port,
+                protocol: host.protocolOptions.transportProtocol,
+                mtu: host.protocolOptions.mtu,
+                multiplexing: host.protocolOptions.multiplexing,
+                'handshake-mode': host.protocolOptions.handshakeMode,
+            },
+        };
     }
 
     // ── VLESS ────────────────────────────────────────
@@ -462,6 +491,7 @@ export class XrayGeneratorService {
         const port = Number(mapped.port);
         const password = String(mapped.password ?? '');
         const method = mapped.method === undefined ? undefined : String(mapped.method);
+        const username = mapped.username === undefined ? undefined : String(mapped.username);
 
         return {
             ...mapped,
@@ -470,6 +500,7 @@ export class XrayGeneratorService {
             port: Number.isInteger(port) && port > 0 && port <= 65535 ? port : original.port,
             password: password || original.password,
             method: method || original.method,
+            username: username || original.username,
             remark:
                 mapped.remark === undefined || mapped.remark === null
                     ? original.remark
@@ -496,6 +527,9 @@ export class XrayGeneratorService {
 
                 return `hysteria2://${encodeURIComponent(link.password)}@${address}:${link.port}/${queryPart}#${remark}`;
             }
+
+            case 'mierus':
+                return `mierus://${encodeURIComponent(link.username ?? '')}:${encodeURIComponent(link.password)}@${address}?${query}`;
 
             default:
                 return `${link.scheme}://${encodeURIComponent(link.password)}@${address}:${link.port}?${query}#${remark}`;

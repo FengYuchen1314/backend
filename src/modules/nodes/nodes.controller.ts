@@ -84,7 +84,7 @@ export class NodesController {
         @Body() body: CreateNodeBootstrapBodyDto,
         @Req() request: Request,
     ): Promise<CreateNodeBootstrapResponseDto> {
-        const result = await this.nodeBootstrapService.create(body.nodePort, {
+        const result = await this.nodeBootstrapService.create(body.nodePort, body.serverType, {
             configuredDomain: this.configService.get('PANEL_DOMAIN'),
             forwardedHost: request.headers['x-forwarded-host'] ?? request.headers.host,
             forwardedProtocol: request.headers['x-forwarded-proto'] ?? request.protocol,

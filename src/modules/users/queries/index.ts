@@ -1,5 +1,6 @@
 import { GetNotConnectedUsersHandler } from './get-not-connected-users';
 import { GetPreparedConfigWithUsersHandler } from './get-prepared-config-with-users';
+import { GetPreparedMitaConfigWithUsersHandler } from './get-prepared-mita-config-with-users';
 import { GetShortUserStatsHandler } from './get-short-user-stats';
 import { GetUserByUniqueFieldHandler } from './get-user-by-unique-field';
 import { GetUserSubpageConfigHandler } from './get-user-subpage-config';
@@ -16,6 +17,7 @@ export const QUERIES = [
     GetUserWithResolvedInboundsHandler,
     GetShortUserStatsHandler,
     GetPreparedConfigWithUsersHandler,
+    GetPreparedMitaConfigWithUsersHandler,
     GetUsersByExpireAtHandler,
     GetUsersWithPaginationHandler,
     GetNotConnectedUsersHandler,

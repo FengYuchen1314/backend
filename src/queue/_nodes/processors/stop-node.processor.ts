@@ -44,11 +44,22 @@ export class StopNodeProcessor extends WorkerHost {
                 return true;
             }
 
-            await this.axios.stopXray({
+            const connection = {
                 address: result.response.address,
                 port: result.response.port,
                 proxyUrl: result.response.proxyUrl,
-            });
+            };
+            const isMieruRuntime =
+                result.response.activeInbounds.length > 0 &&
+                result.response.activeInbounds.every(
+                    (inbound) => inbound.type.toLowerCase() === 'mieru',
+                );
+
+            if (isMieruRuntime) {
+                await this.axios.stopMieru(connection);
+            } else {
+                await this.axios.stopXray(connection);
+            }
 
             // TODO: disable plugins?
 

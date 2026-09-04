@@ -260,6 +260,16 @@ export class MihomoGeneratorService {
                 node.udp = false;
                 return true;
 
+            case 'mieru':
+                node.username = host.protocolOptions.username;
+                node.password = host.protocolOptions.password;
+                node.transport = host.protocolOptions.transportProtocol;
+                node.mtu = host.protocolOptions.mtu;
+                node.multiplexing = host.protocolOptions.multiplexing;
+                node['handshake-mode'] = host.protocolOptions.handshakeMode;
+                delete node.network;
+                return true;
+
             default:
                 return false;
         }

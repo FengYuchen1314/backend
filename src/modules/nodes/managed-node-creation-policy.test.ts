@@ -61,10 +61,27 @@ const xhttpInbound = buildInbound({
     },
 });
 
+const mieruInbound = buildInbound({
+    type: 'mieru',
+    network: 'tcp',
+    port: 24_443,
+    rawInbound: {
+        protocol: 'mieru',
+        settings: {
+            transport: 'TCP',
+            port: 24_443,
+            mtu: 1_400,
+            multiplexing: 'MULTIPLEXING_LOW',
+            handshakeMode: 'HANDSHAKE_STANDARD',
+        },
+    },
+});
+
 test('managed presets are classified without treating imported raw protocols as managed', () => {
     assert.equal(getManagedNodeProtocol(socksInbound), 'SOCKS5');
     assert.equal(getManagedNodeProtocol(visionInbound), 'VLESS_REALITY_VISION');
     assert.equal(getManagedNodeProtocol(xhttpInbound), 'VLESS_XHTTP_REALITY_XMUX');
+    assert.equal(getManagedNodeProtocol(mieruInbound), 'MIERU_TCP');
     assert.equal(
         getManagedNodeProtocol(
             buildInbound({
@@ -155,13 +172,14 @@ test('new-node policy follows server type and rejects protocols outside the crea
         null,
     );
     assert.equal(validateManagedNodeCreation(SERVER_TYPES.BROADBAND_LANDING, [socksInbound]), null);
+    assert.equal(validateManagedNodeCreation(SERVER_TYPES.LEASED_LINE, [mieruInbound]), null);
     assert.match(
         validateManagedNodeCreation(SERVER_TYPES.BROADBAND_LANDING, [visionInbound]) ?? '',
         /not allowed/,
     );
     assert.match(
         validateManagedNodeCreation(SERVER_TYPES.LEASED_LINE, [socksInbound]) ?? '',
-        /Mieru/,
+        /not allowed/,
     );
     assert.match(
         validateManagedNodeCreation(SERVER_TYPES.PUBLIC_DIRECT, [
@@ -205,7 +223,7 @@ test('new-node policy follows server type and rejects protocols outside the crea
         validateManagedNodeCreation(SERVER_TYPES.LEASED_LINE, [
             buildInbound({ type: 'mieru', rawInbound: { type: 'mieru', imported: true } }),
         ]) ?? '',
-        /Mieru/,
+        /mieru/i,
     );
 });
 

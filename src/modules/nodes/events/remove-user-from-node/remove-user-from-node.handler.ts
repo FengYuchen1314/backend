@@ -6,7 +6,7 @@ import { RemoveUserCommand as RemoveUserFromNodeCommandSdk } from '@remnawave/no
 import { NodesQueuesService } from '@queue/_nodes';
 
 import { NodesRepository } from '../../repositories/nodes.repository';
-import { hasActiveSocksInbound } from '../socks-user-sync';
+import { requiresFullUserSyncReload } from '../socks-user-sync';
 import { RemoveUserFromNodeEvent } from './remove-user-from-node.event';
 
 @EventsHandler(RemoveUserFromNodeEvent)
@@ -35,7 +35,7 @@ export class RemoveUserFromNodeHandler implements IEventHandler<RemoveUserFromNo
             const nodesForHotReload = [];
 
             for (const node of nodes) {
-                if (hasActiveSocksInbound(node.activeInbounds)) {
+                if (requiresFullUserSyncReload(node.activeInbounds)) {
                     await this.nodesQueuesService.startNode({
                         nodeUuid: node.uuid,
                         force: true,

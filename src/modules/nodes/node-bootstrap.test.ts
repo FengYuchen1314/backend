@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { CreateNodeBootstrapCommand, RedeemNodeBootstrapCommand } from '@libs/contracts/commands';
-import { ERRORS } from '@libs/contracts/constants';
+import { ERRORS, SERVER_TYPES } from '@libs/contracts/constants';
 
 import { NodeBootstrapService } from './node-bootstrap.service';
 import {
@@ -24,6 +24,17 @@ test('bootstrap contracts reject invalid ports and malformed tokens', () => {
     assert.equal(
         CreateNodeBootstrapCommand.RequestBodySchema.safeParse({ nodePort: 65_535 }).success,
         true,
+    );
+    assert.equal(
+        CreateNodeBootstrapCommand.RequestBodySchema.parse({ nodePort: 2_222 }).serverType,
+        SERVER_TYPES.PUBLIC_DIRECT,
+    );
+    assert.equal(
+        CreateNodeBootstrapCommand.RequestBodySchema.safeParse({
+            nodePort: 2_222,
+            serverType: 'UNKNOWN',
+        }).success,
+        false,
     );
     assert.equal(
         RedeemNodeBootstrapCommand.RequestBodySchema.safeParse({ token: 'short' }).success,
@@ -73,6 +84,19 @@ test('installer writes protected panel-provided env and compose templates', () =
     assert.match(script, /env_file:\n      - \.env/);
     assert.match(script, /chmod 600/);
     assert.doesNotMatch(script, /curl|wget|github\.com/);
+    assert.doesNotMatch(script, /ghcr\.io\/enfein\/mita|MITA_UDS_PATH/);
+});
+
+test('leased-line installer adds a pinned Mita sidecar with a shared UDS volume', () => {
+    const script = renderNodeBootstrapInstaller(2_222, VALID_NODE_SECRET, SERVER_TYPES.LEASED_LINE);
+
+    assert.match(script, /ghcr\.io\/enfein\/mita:v3\.36\.0@sha256:[a-f0-9]{64}/);
+    assert.match(script, /MITA_UDS_PATH=\/var\/run\/mita\/mita\.sock/);
+    assert.match(script, /mita-run:\/var\/run\/mita/g);
+    assert.match(script, /\["CMD", "\/usr\/local\/bin\/mita", "status"\]/);
+    assert.match(script, /condition: service_healthy/);
+    assert.match(script, /mita-config:\/etc\/mita/);
+    assert.match(script, /mita-data:\/var\/lib\/mita/);
 });
 
 test('bootstrap token is hashed at rest and can be redeemed only once', async () => {
@@ -103,7 +127,7 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     };
 
     const service = new NodeBootstrapService(cache as never, keygen as never);
-    const created = await service.create(2_222, {
+    const created = await service.create(2_222, SERVER_TYPES.LEASED_LINE, {
         configuredDomain: 'panel.example.com',
         forwardedHost: undefined,
         forwardedProtocol: undefined,
@@ -120,11 +144,18 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     assert.equal(storedKey, getNodeBootstrapCacheKey(token));
     assert.equal(storedKey.includes(token), false);
     assert.equal(JSON.stringify(storedValue).includes(token), false);
+    assert.deepEqual(storedValue, {
+        nodePort: 2_222,
+        serverType: SERVER_TYPES.LEASED_LINE,
+    });
     assert.equal(storedTtl, NODE_BOOTSTRAP_TTL_SECONDS);
 
     const first = await service.redeem(token);
     assert.equal(first.isOk, true);
-    if (first.isOk) assert.match(first.response, new RegExp(`SECRET_KEY=${VALID_NODE_SECRET}`));
+    if (first.isOk) {
+        assert.match(first.response, new RegExp(`SECRET_KEY=${VALID_NODE_SECRET}`));
+        assert.match(first.response, /MITA_UDS_PATH/);
+    }
 
     const second = await service.redeem(token);
     assert.equal(second.isOk, false);

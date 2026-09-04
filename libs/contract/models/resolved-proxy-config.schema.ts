@@ -91,6 +91,15 @@ export const SocksProtocolOptionsSchema = z.object({
     password: z.string(),
 });
 
+export const MieruProtocolOptionsSchema = z.object({
+    username: z.string(),
+    password: z.string(),
+    transportProtocol: z.enum(['TCP', 'UDP']),
+    mtu: z.int().min(1_280).max(1_500),
+    multiplexing: z.literal('MULTIPLEXING_LOW'),
+    handshakeMode: z.literal('HANDSHAKE_STANDARD'),
+});
+
 export const HysteriaTransportOptionsSchema = z.object({
     version: z.int(),
     auth: z.string(),
@@ -143,11 +152,17 @@ const SocksProtocolSchema = z.object({
     protocolOptions: SocksProtocolOptionsSchema,
 });
 
+const MieruProtocolSchema = z.object({
+    protocol: z.literal('mieru'),
+    protocolOptions: MieruProtocolOptionsSchema,
+});
+
 export const ProtocolVariantSchema = z.discriminatedUnion('protocol', [
     VlessProtocolSchema.meta({ title: 'vless' }),
     TrojanProtocolSchema.meta({ title: 'trojan' }),
     ShadowsocksProtocolSchema.meta({ title: 'shadowsocks' }),
     HysteriaProtocolSchema.meta({ title: 'hysteria' }),
+    MieruProtocolSchema.meta({ title: 'mieru' }),
     SocksProtocolSchema.meta({ title: 'socks' }),
 ]);
 

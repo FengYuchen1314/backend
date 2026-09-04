@@ -81,6 +81,37 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
 
             const { response: nodes } = findNodesByCriteriaResult;
 
+            const profileUsesMieru = nodes.some((node) =>
+                node.activeInbounds.some((inbound) => inbound.type.toLowerCase() === 'mieru'),
+            );
+            if (profileUsesMieru) {
+                const hasMixedRuntimeNode = nodes.some(
+                    (node) =>
+                        node.activeInbounds.length > 0 &&
+                        !node.activeInbounds.every(
+                            (inbound) => inbound.type.toLowerCase() === 'mieru',
+                        ),
+                );
+                if (hasMixedRuntimeNode) {
+                    this.logger.error(
+                        `Profile ${payload.profileUuid} mixes Xray and Mieru inbounds; refusing bulk start.`,
+                    );
+                    return;
+                }
+
+                await pMap(
+                    nodes,
+                    (node) =>
+                        this.nodesQueuesService.startNode({
+                            nodeUuid: node.uuid,
+                            force: payload.force,
+                            retryIfBusy: true,
+                        }),
+                    { concurrency: this.CONCURRENCY },
+                );
+                return;
+            }
+
             const activeInboundsOnNodes = new Map<string, ConfigProfileInboundEntity>();
             const activeNodeTags = new Map<string, string[]>();
 

@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
+import { SERVER_TYPES, SERVER_TYPES_VALUES, TServerType } from '@libs/contracts/constants';
+
 export const NODE_BOOTSTRAP_IMAGE = 'ghcr.io/fengyuchen1314/node:xboard-dev';
+export const MITA_BOOTSTRAP_IMAGE =
+    'ghcr.io/enfein/mita:v3.36.0@sha256:2b31fe24ce7b69ac4250af214ab6f7ec22dd7fff130b8783faf26b1fd4b8b007';
 export const NODE_BOOTSTRAP_TTL_SECONDS = 5 * 60;
 
 const SECRET_KEY_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -63,13 +67,59 @@ export function buildNodeBootstrapInstallCommand(
     return `curl --fail --silent --show-error${protocolRestriction} --request POST --header 'Content-Type: application/json' --data-raw ${shellSingleQuote(body)} ${shellSingleQuote(redeemUrl)} | bash`;
 }
 
-export function renderNodeBootstrapInstaller(nodePort: number, secretKey: string): string {
+export function renderNodeBootstrapInstaller(
+    nodePort: number,
+    secretKey: string,
+    serverType: TServerType = SERVER_TYPES.PUBLIC_DIRECT,
+): string {
     if (!Number.isInteger(nodePort) || nodePort < 1 || nodePort > 65_535) {
         throw new Error('Node port is invalid.');
     }
     if (!SECRET_KEY_PATTERN.test(secretKey)) {
         throw new Error('Node secret payload is invalid.');
     }
+    if (!SERVER_TYPES_VALUES.includes(serverType)) {
+        throw new Error('Server type is invalid.');
+    }
+
+    const usesMita = serverType === SERVER_TYPES.LEASED_LINE;
+    const mitaEnvironment = usesMita ? '\nMITA_UDS_PATH=/var/run/mita/mita.sock' : '';
+    const mitaService = usesMita
+        ? `
+  mita:
+    image: ${MITA_BOOTSTRAP_IMAGE}
+    container_name: mita
+    hostname: mita
+    network_mode: host
+    restart: always
+    volumes:
+      - mita-config:/etc/mita
+      - mita-data:/var/lib/mita
+      - mita-run:/var/run/mita
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/mita", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+`
+        : '';
+    const remnanodeMitaConfig = usesMita
+        ? `
+    volumes:
+      - mita-run:/var/run/mita
+    depends_on:
+      mita:
+        condition: service_healthy`
+        : '';
+    const mitaVolumes = usesMita
+        ? `
+
+volumes:
+  mita-config:
+  mita-data:
+  mita-run:`
+        : '';
 
     return `#!/usr/bin/env bash
 set -Eeuo pipefail
@@ -96,7 +146,7 @@ install -d -m 700 "\${INSTALL_DIR}"
 
 cat >"\${INSTALL_DIR}/.env" <<'REMNAWAVE_NODE_ENV'
 NODE_PORT=${nodePort}
-SECRET_KEY=${secretKey}
+SECRET_KEY=${secretKey}${mitaEnvironment}
 REMNAWAVE_NODE_ENV
 
 cat >"\${INSTALL_DIR}/compose.yml" <<'REMNAWAVE_NODE_COMPOSE'
@@ -114,7 +164,7 @@ services:
         soft: 1048576
         hard: 1048576
     env_file:
-      - .env
+      - .env${remnanodeMitaConfig}${mitaService}${mitaVolumes}
 REMNAWAVE_NODE_COMPOSE
 
 chmod 600 "\${INSTALL_DIR}/.env" "\${INSTALL_DIR}/compose.yml"

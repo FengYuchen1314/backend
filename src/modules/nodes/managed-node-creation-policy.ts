@@ -2,7 +2,11 @@ import { SERVER_TYPES, TServerType } from '@contract/constants';
 
 import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 
-export type TManagedNodeProtocol = 'SOCKS5' | 'VLESS_REALITY_VISION' | 'VLESS_XHTTP_REALITY_XMUX';
+export type TManagedNodeProtocol =
+    | 'MIERU_TCP'
+    | 'SOCKS5'
+    | 'VLESS_REALITY_VISION'
+    | 'VLESS_XHTTP_REALITY_XMUX';
 
 const ALLOWED_PROTOCOLS_BY_SERVER_TYPE: Record<TServerType, ReadonlySet<TManagedNodeProtocol>> = {
     [SERVER_TYPES.PUBLIC_DIRECT]: new Set([
@@ -11,7 +15,7 @@ const ALLOWED_PROTOCOLS_BY_SERVER_TYPE: Record<TServerType, ReadonlySet<TManaged
         'VLESS_XHTTP_REALITY_XMUX',
     ]),
     [SERVER_TYPES.BROADBAND_LANDING]: new Set(['SOCKS5']),
-    [SERVER_TYPES.LEASED_LINE]: new Set(),
+    [SERVER_TYPES.LEASED_LINE]: new Set(['MIERU_TCP']),
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -31,6 +35,10 @@ export function getManagedNodeProtocol(
     if (protocol !== inbound.type.toLowerCase()) return null;
 
     const settings = asRecord(rawInbound?.settings);
+
+    if (protocol === 'mieru') {
+        return settings?.transport === 'TCP' ? 'MIERU_TCP' : null;
+    }
 
     if (protocol === 'socks') {
         return settings?.auth === 'password' && settings.udp === false ? 'SOCKS5' : null;
@@ -67,17 +75,11 @@ export function validateManagedNodeCreation(
     const allowedProtocols = ALLOWED_PROTOCOLS_BY_SERVER_TYPE[serverType];
 
     if (inbounds.length === 0) {
-        return serverType === SERVER_TYPES.LEASED_LINE
-            ? 'Managed leased-line deployment is unavailable until Mieru support is connected.'
-            : 'At least one managed inbound is required when creating a node.';
+        return 'At least one managed inbound is required when creating a node.';
     }
 
     for (const inbound of inbounds) {
         const protocol = getManagedNodeProtocol(inbound);
-
-        if (serverType === SERVER_TYPES.LEASED_LINE) {
-            return 'Managed leased-line deployment is unavailable until Mieru support is connected.';
-        }
 
         if (!protocol) {
             return `Inbound ${inbound.tag} (${inbound.type}) is not in the managed creation whitelist.`;

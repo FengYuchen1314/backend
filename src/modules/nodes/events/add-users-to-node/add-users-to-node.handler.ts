@@ -13,7 +13,7 @@ import { GetUsersWithResolvedInboundsQuery } from '@modules/users/queries/get-us
 import { NodesQueuesService } from '@queue/_nodes';
 
 import { NodesRepository } from '../../repositories/nodes.repository';
-import { hasActiveSocksInbound } from '../socks-user-sync';
+import { requiresFullUserSyncReload } from '../socks-user-sync';
 import { AddUsersToNodeEvent } from './add-users-to-node.event';
 
 @EventsHandler(AddUsersToNodeEvent)
@@ -49,7 +49,7 @@ export class AddUsersToNodeHandler implements IEventHandler<AddUsersToNodeEvent>
             if (activeNodes.length === 0) return;
 
             for (const node of activeNodes) {
-                if (hasActiveSocksInbound(node.activeInbounds)) {
+                if (requiresFullUserSyncReload(node.activeInbounds)) {
                     await this.nodesQueuesService.startNode({
                         nodeUuid: node.uuid,
                         force: true,

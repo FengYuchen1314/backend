@@ -61,6 +61,20 @@ export interface IResolveProxyConfigOptions {
     excludeHostsByTags?: ISRRContext['excludeHostsByTags'];
 }
 
+interface MieruInboundConfig {
+    protocol: 'mieru';
+    settings: {
+        handshakeMode?: unknown;
+        mtu?: unknown;
+        multiplexing?: unknown;
+        transport?: unknown;
+    };
+    streamSettings?: undefined;
+    tag?: string;
+}
+
+type ResolvableInboundConfig = InboundConfig | MieruInboundConfig;
+
 @Injectable()
 export class ResolveProxyConfigService {
     private readonly nanoid: ReturnType<typeof customAlphabet>;
@@ -129,7 +143,7 @@ export class ResolveProxyConfigService {
 
             const resolvedProxyConfig = this.buildResolvedProxyConfig({
                 inputHost,
-                inbound: inputHost.rawInbound as InboundConfig,
+                inbound: inputHost.rawInbound as ResolvableInboundConfig,
                 finalRemark,
                 user,
                 publicKeyMap,
@@ -487,7 +501,7 @@ export class ResolveProxyConfigService {
 
     private resolveProtocolOptions(
         inputHost: HostWithRawInbound,
-        inbound: InboundConfig,
+        inbound: ResolvableInboundConfig,
         user: UserEntity,
         encryption?: string,
     ): ProtocolVariant | null {
@@ -545,6 +559,32 @@ export class ResolveProxyConfigService {
                         password: deriveSocksPassword(user.trojanPassword, user.vlessUuid),
                     },
                 };
+            case 'mieru': {
+                const settings = inbound.settings;
+
+                if (settings.transport !== 'TCP' && settings.transport !== 'UDP') {
+                    return null;
+                }
+                if (!Number.isInteger(settings.mtu)) return null;
+                if (
+                    settings.multiplexing !== 'MULTIPLEXING_LOW' ||
+                    settings.handshakeMode !== 'HANDSHAKE_STANDARD'
+                ) {
+                    return null;
+                }
+
+                return {
+                    protocol: 'mieru',
+                    protocolOptions: {
+                        username: user.id.toString(),
+                        password: user.trojanPassword,
+                        transportProtocol: settings.transport,
+                        mtu: settings.mtu as number,
+                        multiplexing: settings.multiplexing,
+                        handshakeMode: settings.handshakeMode,
+                    },
+                };
+            }
             default:
                 return null;
         }
@@ -552,7 +592,7 @@ export class ResolveProxyConfigService {
 
     private buildResolvedProxyConfig(ctx: {
         inputHost: HostWithRawInbound;
-        inbound: InboundConfig;
+        inbound: ResolvableInboundConfig;
         finalRemark: string;
         user: UserEntity;
         publicKeyMap: Map<string, string>;

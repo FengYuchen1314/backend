@@ -49,6 +49,8 @@ import { MtlsSocksProxyAgent } from './mtls-agent';
 const EMPTY_BODY: Readonly<Record<string, never>> = {};
 const MAX_NODE_ERROR_LENGTH = 2000;
 const ZSTD_HEADERS: RawAxiosRequestHeaders = { 'Content-Encoding': 'zstd' };
+const MIERU_START_PATH = '/node/mieru/start';
+const MIERU_STOP_PATH = '/node/mieru/stop';
 
 const zstdCompressAsync = promisify(zstdCompress);
 
@@ -282,6 +284,30 @@ export class AxiosService {
             method: 'get',
             logAxiosError: false,
             timeout: 15_000,
+        });
+    }
+
+    public async startMieru(
+        data: { config: Record<string, unknown> },
+        opts: INodeConnectionOpts,
+    ): Promise<TResult<StartXrayCommand.Response['response']>> {
+        return this.request<StartXrayCommand.Response>({
+            label: 'START MIERU',
+            path: MIERU_START_PATH,
+            opts,
+            data,
+            compress: true,
+            logAxiosError: false,
+            timeout: 60_000,
+        });
+    }
+
+    public async stopMieru(opts: INodeConnectionOpts): Promise<TResult<{ error: string | null }>> {
+        return this.request<{ response: { error: string | null } }>({
+            label: 'STOP MIERU',
+            path: MIERU_STOP_PATH,
+            opts,
+            method: 'get',
         });
     }
 
