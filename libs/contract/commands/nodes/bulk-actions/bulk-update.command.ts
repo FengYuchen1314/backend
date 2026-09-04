@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { NODES_ROUTES, REST_API } from '../../../api';
-import { getEndpointDetails } from '../../../constants';
+import { getEndpointDetails, SERVER_TYPES } from '../../../constants';
 
 export namespace BulkNodesUpdateCommand {
     export const url = REST_API.NODES.BULK_ACTIONS.UPDATE;
@@ -17,6 +17,7 @@ export namespace BulkNodesUpdateCommand {
     export const RequestBodySchema = z.object({
         uuids: z.array(z.uuid()).min(1),
         fields: z.object({
+            serverType: z.enum(SERVER_TYPES).optional(),
             countryCode: z.optional(z.string().max(2).toUpperCase()),
             consumptionMultiplier: z.optional(
                 z

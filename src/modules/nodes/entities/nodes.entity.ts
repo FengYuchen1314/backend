@@ -1,3 +1,4 @@
+import { TServerType } from '@contract/constants';
 import { Nodes } from '@prisma/client';
 
 import { TNodeIps } from '@libs/contracts/models';
@@ -14,6 +15,7 @@ export class NodesEntity implements Nodes {
     public address: string;
     public port: null | number;
     public proxyUrl: string | null;
+    public serverType: TServerType;
     public isConnected: boolean;
     public isConnecting: boolean;
     public isDisabled: boolean;

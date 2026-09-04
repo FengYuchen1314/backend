@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { SERVER_TYPES } from '../constants';
 import { ConfigProfileInboundsSchema } from './config-profile-inbounds.schema';
 import { PartialInfraProviderSchema } from './infra-provider.schema';
 import { NodeIpsSchema } from './node-ips.schema';
@@ -12,6 +13,7 @@ export const NodesSchema = z.object({
     address: z.string(),
     port: z.nullable(z.int()),
     proxyUrl: z.nullable(z.string()),
+    serverType: z.enum(SERVER_TYPES),
     isConnected: z.boolean(),
     isDisabled: z.boolean(),
     isConnecting: z.boolean(),

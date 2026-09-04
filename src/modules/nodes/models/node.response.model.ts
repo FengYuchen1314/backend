@@ -1,3 +1,5 @@
+import { TServerType } from '@contract/constants';
+
 import { fromNanoToNumber } from '@common/utils/nano';
 import { TNodeIps } from '@libs/contracts/models';
 
@@ -14,6 +16,7 @@ export class NodeResponseModel {
     public address: string;
     public port: null | number;
     public proxyUrl: string | null;
+    public serverType: TServerType;
     public isConnected: boolean;
     public isConnecting: boolean;
     public isDisabled: boolean;
@@ -55,6 +58,7 @@ export class NodeResponseModel {
         this.address = data.address;
         this.port = data.port;
         this.proxyUrl = data.proxyUrl;
+        this.serverType = data.serverType;
         this.isConnected = data.isConnected;
         this.isConnecting = data.isConnecting;
         this.isDisabled = data.isDisabled;

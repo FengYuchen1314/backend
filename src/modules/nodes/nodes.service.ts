@@ -553,6 +553,7 @@ export class NodesService {
             const { uuids, fields } = body;
 
             const fieldsToUpdate: Partial<NodesEntity> = {
+                serverType: fields.serverType,
                 countryCode: fields.countryCode,
                 consumptionMultiplier: mapDefined(fields.consumptionMultiplier, toNano),
                 nodeConsumptionMultiplier: mapDefined(fields.nodeConsumptionMultiplier, toNano),

@@ -162,12 +162,14 @@ model Keygen {
 }
 
 model Nodes {
-  id       BigInt  @unique @default(autoincrement()) @map("id")
-  uuid     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name     String  @unique @map("name")
-  address  String  @unique @map("address")
-  port     Int?    @map("port")
-  proxyUrl String? @map("proxy_url")
+  id         BigInt  @unique @default(autoincrement()) @map("id")
+  uuid       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String  @unique @map("name")
+  address    String  @unique @map("address")
+  port       Int?    @map("port")
+  proxyUrl   String? @map("proxy_url")
+  /// @kyselyType('PUBLIC_DIRECT' | 'LEASED_LINE' | 'BROADBAND_LANDING')
+  serverType String  @default("PUBLIC_DIRECT") @map("server_type")
 
   activeConfigProfileUuid String? @map("active_config_profile_uuid") @db.Uuid
   activePluginUuid        String? @map("active_plugin_uuid") @db.Uuid

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { NODES_ROUTES, REST_API } from '../../api';
-import { getEndpointDetails } from '../../constants';
+import { getEndpointDetails, SERVER_TYPES } from '../../constants';
 import { NodeIpsSchema } from '../../models';
 import { NodeResponseSchema } from './node.response';
 export namespace CreateNodeCommand {
@@ -26,6 +26,7 @@ export namespace CreateNodeCommand {
                 'Expected socks5://[user:pass@]host:port',
             )
             .nullish(),
+        serverType: z.enum(SERVER_TYPES).optional().default(SERVER_TYPES.PUBLIC_DIRECT),
         isTrafficTrackingActive: z.boolean().optional().default(false),
         trafficLimitBytes: z.number().min(0).optional(),
         notifyPercent: z.int().min(0).max(100).optional(),

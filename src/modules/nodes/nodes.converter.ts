@@ -18,6 +18,7 @@ const entityToModel = (entity: NodesEntity): Nodes => {
         address: entity.address,
         port: entity.port,
         proxyUrl: entity.proxyUrl,
+        serverType: entity.serverType,
         isConnected: entity.isConnected,
         isConnecting: entity.isConnecting,
         isDisabled: entity.isDisabled,

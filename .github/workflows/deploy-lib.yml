@@ -7,6 +7,7 @@ on:
       - '.github/workflows/deploy-lib.yml'
 jobs:
   build:
+    if: github.repository_owner == 'remnawave'
     runs-on: ubuntu-latest
     permissions:
       contents: read
