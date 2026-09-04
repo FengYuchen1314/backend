@@ -178,6 +178,38 @@ test('mainland evidence older than 24 hours is never eligible', () => {
     );
 });
 
+test('Cloudflare IPv4/IPv6 or reported signals cannot be hidden by a false detected flag', () => {
+    for (const address of ['104.16.1.2', '172.64.0.1', '2606:4700::1', '::ffff:104.16.1.2']) {
+        const value = report('example.com');
+        value.dns.addresses = ['203.0.113.10', address];
+        const result = evaluateCamouflageDomainValidation(value, NOW);
+        assert.equal(result.eligible, false, address);
+        assert.ok(
+            result.failures.includes(CAMOUFLAGE_DOMAIN_VALIDATION_FAILURES.CLOUDFLARE_DETECTED),
+        );
+        const oldCache = buildCamouflageDomainValidation(NODE_UUID, value, NOW);
+        oldCache.eligible = true;
+        assert.equal(
+            canAutoSelectCamouflageDomain(
+                seed('example.com', 'DigitalOcean', 'AS14061'),
+                oldCache,
+                NODE_UUID,
+                new Set(),
+                NOW,
+            ),
+            false,
+            'A previously eligible cache entry must not bypass the current CDN exclusion',
+        );
+    }
+    const value = report('example.com');
+    value.cloudflare = { detected: false, signals: ['HTTP_HEADER'] };
+    assert.ok(
+        evaluateCamouflageDomainValidation(value, NOW).failures.includes(
+            CAMOUFLAGE_DOMAIN_VALIDATION_FAILURES.CLOUDFLARE_DETECTED,
+        ),
+    );
+});
+
 test('cache key includes node, normalized domain, and DNS fingerprint', () => {
     assert.equal(
         buildCamouflageDomainValidationCacheKey(

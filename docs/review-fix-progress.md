@@ -157,13 +157,30 @@ part of that verified checksum. Hard-crash uncheckpointed accounting is not loss
   Xray JSON/Base64/Clash/Stash graph output remains explicitly unsupported; sing-box does not
   silently emulate round-robin or consistent-hash semantics.
 - Expand three individual discovery seeds per region into the requested distinct domain pools.
-  The user has now offered one mainland VPS, but SSH found a changed host identity; no probe has
-  run pending independent confirmation. Keep candidates unverified and automatic selection
-  unavailable until evidence satisfies the policy. One probe network does not establish
-  nationwide reachability or satisfy the current two-distinct-ASN automatic gate.
+  The user independently verified the mainland VPS's changed SSH identity. Its read-only probe
+  completed TLS 1.3/X25519/HTTP/2 requests to all 21 seeds, with no observed Cloudflare signals.
+  The Cloudflare negative control was rejected before TLS. These are single-source discovery
+  observations, not automatic eligibility. One network does not establish nationwide
+  reachability or satisfy the current two-distinct-ASN automatic gate. See Node's
+  docs/mainland-camouflage-probe.md; no existing service on the mainland VPS was changed.
 - Browser regressions for dirty topology refresh/save, cached Mieru initialization, and new
   reverse-proxy draft/revision controls.
 - Full panel database/API acceptance, final paired image build/publication and review of every
   original requirement, including update/bootstrap end-to-end checks.
 
 Do not mark remediation complete until these remaining items have direct evidence.
+
+## Additional checks after the opt-in runtime checkpoint
+
+- Node ec632cf passed [CI](https://github.com/FengYuchen1314/node/actions/runs/33925806458), its
+  [multi-architecture image build](https://github.com/FengYuchen1314/node/actions/runs/33925806431)
+  and all 24 portable AnyTLS tests on 185.99.135.224. The new checks cover retired private-config
+  cleanup. Artifact SHA-256: `b712ee555961e2235304d6a2d2b2ebc99c6934710f1665193d7b3ccece5e29fd`.
+- Frontend 5df763b7 passed [CI](https://github.com/FengYuchen1314/frontend/actions/runs/33926419685),
+  typecheck and 25 unit tests. Draft epochs now reject late save/publication/preview/reload
+  responses after selection or local edits; deleted-but-edited drafts are retained. These are
+  unit/build checks, not browser acceptance.
+- The backend domain policy now independently checks Cloudflare IPv4/IPv6 ranges and reported
+  signals, even when an Agent says `detected: false` or an older cache says `eligible: true`.
+  Unknown provenance is not promoted by the new probe. Full managed start/edit-path enforcement
+  and current authenticated probe ingestion remain part of the integration work.

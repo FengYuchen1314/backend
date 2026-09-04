@@ -107,7 +107,9 @@ Before exposing managed creation, complete:
   topology hops to the wrapper, never silently remove the inner TLS or expose wrapper-only nodes.
 - Certificate lifecycle, UI validation, user entitlements and full panel/API/Agent acceptance.
 
-The user has now offered one mainland VPS. Its SSH host key differs from the locally saved
-identity, so no probe has run pending independent identity confirmation. Foreign VPS tests are
-not evidence of mainland reachability or GFW bypass. A single mainland vantage point will still
-not establish nationwide availability or satisfy the existing two-distinct-ASN automatic gate.
+The user independently confirmed the mainland VPS's changed SSH fingerprint. A read-only probe
+then completed TLS 1.3/X25519/HTTP/2 requests to all 21 current seeds from that single source,
+without observed Cloudflare signals; a separate Cloudflare negative control was excluded before
+TLS. See Node's docs/mainland-camouflage-probe.md for raw evidence and limits. A single mainland
+vantage point does not establish nationwide availability, protocol connectivity or satisfy the
+existing two-distinct-ASN automatic gate.
