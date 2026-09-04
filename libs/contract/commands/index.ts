@@ -24,4 +24,5 @@ export * from './subscription-settings';
 export * from './subscription-template';
 export * from './subscriptions';
 export * from './system';
+export * from './topologies';
 export * from './users';

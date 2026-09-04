@@ -1,0 +1,2 @@
+export const INTERNAL_TOPOLOGY_TEMPLATE_TYPE = 'XBOARD_TOPOLOGY' as const;
+export const TOPOLOGY_MAX_DEPTH = 16;

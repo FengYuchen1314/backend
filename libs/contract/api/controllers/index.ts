@@ -22,6 +22,7 @@ export * from './subscription-page-configs';
 export * from './subscription-request-history';
 export * from './subscription-settings';
 export * from './subscription-template';
+export * from './topologies';
 export * from './subscriptions';
 export * from './system';
 export * from './users';
