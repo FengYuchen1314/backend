@@ -119,22 +119,18 @@ test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars'
     assert.match(script, /edge-run:\/var\/run\/xboard-edge/g);
 });
 
-test('leased-line installer adds a pinned Mita sidecar with a shared UDS volume', () => {
+test('leased-line installer uses embedded isolated Mieru with persistent instance state', () => {
     const script = renderNodeBootstrapInstaller(2_222, VALID_NODE_SECRET, SERVER_TYPES.LEASED_LINE);
 
-    assert.match(script, /ghcr\.io\/enfein\/mita:v3\.36\.0@sha256:[a-f0-9]{64}/);
-    assert.match(script, /MITA_UDS_PATH=\/var\/run\/mita\/mita\.sock/);
+    assert.doesNotMatch(script, /ghcr\.io\/enfein\/mita|mita-run|mita-config|mita-data/);
+    assert.match(script, /MIERU_STATE_DIR=\/var\/lib\/remnanode\/mieru/);
+    assert.match(script, /MIERU_SOCKET_DIR=\/var\/run\/rw-mita/);
     assert.match(script, /MIERU_ENABLED=true/);
     assert.match(
         script,
         /MIERU_METRICS_BASELINE_PATH=\/var\/lib\/remnanode\/mieru-metrics-baselines\.json/,
     );
-    assert.match(script, /mita-run:\/var\/run\/mita/g);
     assert.match(script, /remnanode-state:\/var\/lib\/remnanode/);
-    assert.match(script, /\["CMD", "\/usr\/local\/bin\/mita", "status"\]/);
-    assert.match(script, /condition: service_healthy/);
-    assert.match(script, /mita-config:\/etc\/mita/);
-    assert.match(script, /mita-data:\/var\/lib\/mita/);
     assert.doesNotMatch(script, /EDGE_ENABLED|haproxy-master|xboard-edge-caddy/);
 });
 
@@ -193,7 +189,7 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     assert.equal(first.isOk, true);
     if (first.isOk) {
         assert.match(first.response, new RegExp(`SECRET_KEY=${VALID_NODE_SECRET}`));
-        assert.match(first.response, /MITA_UDS_PATH/);
+        assert.match(first.response, /MIERU_STATE_DIR/);
     }
 
     const second = await service.redeem(token);

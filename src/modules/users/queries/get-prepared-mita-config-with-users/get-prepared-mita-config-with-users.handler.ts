@@ -10,7 +10,7 @@ import { UsersRepository } from '@modules/users/repositories/users.repository';
 
 import {
     GetPreparedMitaConfigWithUsersQuery,
-    IMitaServerConfig,
+    IMitaRuntimeConfig,
 } from './get-prepared-mita-config-with-users.query';
 
 const MieruInboundSettingsSchema = z.object({
@@ -38,13 +38,15 @@ function getMieruSettings(rawInbound: object | null): MieruInboundSettings {
 @QueryHandler(GetPreparedMitaConfigWithUsersQuery)
 export class GetPreparedMitaConfigWithUsersHandler implements IQueryHandler<
     GetPreparedMitaConfigWithUsersQuery,
-    TResult<IMitaServerConfig>
+    TResult<IMitaRuntimeConfig>
 > {
     private readonly logger = new Logger(GetPreparedMitaConfigWithUsersHandler.name);
 
     constructor(private readonly usersRepository: UsersRepository) {}
 
-    async execute(query: GetPreparedMitaConfigWithUsersQuery): Promise<TResult<IMitaServerConfig>> {
+    async execute(
+        query: GetPreparedMitaConfigWithUsersQuery,
+    ): Promise<TResult<IMitaRuntimeConfig>> {
         try {
             if (
                 query.activeInbounds.length === 0 ||
@@ -53,49 +55,43 @@ export class GetPreparedMitaConfigWithUsersHandler implements IQueryHandler<
                 throw new Error('Mita runtime requires at least one Mieru inbound.');
             }
 
-            const settings = query.activeInbounds.map((inbound) =>
-                getMieruSettings(inbound.rawInbound),
+            const instances: IMitaRuntimeConfig['instances'] = query.activeInbounds.map(
+                (inbound) => {
+                    const settings = getMieruSettings(inbound.rawInbound);
+                    return {
+                        id: inbound.uuid,
+                        config: {
+                            portBindings: [{ port: settings.port, protocol: settings.transport }],
+                            users: [],
+                            advancedSettings: {
+                                metricsLoggingInterval: settings.metricsLoggingInterval,
+                                userHintIsMandatory: settings.userHintIsMandatory,
+                            },
+                            loggingLevel: settings.loggingLevel,
+                            mtu: settings.mtu,
+                        },
+                    };
+                },
             );
-            const first = settings[0];
-
-            if (
-                settings.some(
-                    (item) =>
-                        item.loggingLevel !== first.loggingLevel ||
-                        item.metricsLoggingInterval !== first.metricsLoggingInterval ||
-                        item.mtu !== first.mtu ||
-                        item.multiplexing !== first.multiplexing ||
-                        item.handshakeMode !== first.handshakeMode ||
-                        item.userHintIsMandatory !== first.userHintIsMandatory,
-                )
-            ) {
-                throw new Error('Mieru listeners in one runtime must share server settings.');
-            }
-
-            const users: IMitaServerConfig['users'] = [];
+            const instanceByTag = new Map(
+                query.activeInbounds.map((inbound, index) => [inbound.tag, instances[index]]),
+            );
             const usersStream = this.usersRepository.getUsersForConfigStream(query.activeInbounds);
 
             for await (const userBatch of usersStream) {
                 for (const user of userBatch) {
-                    users.push({
-                        name: user.id.toString(),
-                        password: user.trojanPassword,
-                    });
+                    for (const tag of new Set(user.tags)) {
+                        instanceByTag.get(tag)?.config.users.push({
+                            name: user.id.toString(),
+                            password: user.trojanPassword,
+                        });
+                    }
                 }
             }
 
             return ok({
-                portBindings: settings.map((item) => ({
-                    port: item.port,
-                    protocol: item.transport,
-                })),
-                users,
-                advancedSettings: {
-                    metricsLoggingInterval: first.metricsLoggingInterval,
-                    userHintIsMandatory: first.userHintIsMandatory,
-                },
-                loggingLevel: first.loggingLevel,
-                mtu: first.mtu,
+                kind: 'ISOLATED_LISTENERS',
+                instances: instances.sort((left, right) => left.id.localeCompare(right.id)),
             });
         } catch (error) {
             this.logger.error(error);

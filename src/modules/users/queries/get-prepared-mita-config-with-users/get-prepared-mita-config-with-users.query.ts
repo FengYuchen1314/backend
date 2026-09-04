@@ -21,7 +21,12 @@ export interface IMitaServerConfig {
     mtu: number;
 }
 
-export class GetPreparedMitaConfigWithUsersQuery extends Query<TResult<IMitaServerConfig>> {
+export interface IMitaRuntimeConfig {
+    kind: 'ISOLATED_LISTENERS';
+    instances: Array<{ id: string; config: IMitaServerConfig }>;
+}
+
+export class GetPreparedMitaConfigWithUsersQuery extends Query<TResult<IMitaRuntimeConfig>> {
     constructor(public readonly activeInbounds: ConfigProfileInboundEntity[]) {
         super();
     }
