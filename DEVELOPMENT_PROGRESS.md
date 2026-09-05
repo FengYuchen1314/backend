@@ -1,6 +1,21 @@
 # 二次开发进度
 
-## 最新汇总与上传范围（2026-09-06）
+## 最新汇总与上传范围：Frontend `97540c5e`（2026-09-06）
+
+本次按要求保存现有进度并上传 GitHub，不继续扩展开发、不部署新版本、不合并主分支或更新发布标签。Frontend 检查点为 `97540c5efcb6ccb2f6379a7a25c9b86ee37655f1`，分支 `wip/shared-443-ui`；Backend 本次只改进度文档，功能代码仍为 `c5b9d397`；Node 保持 `0e8ae34f`，无新增修改。下方各批记录保留为历史，状态以本节为准。
+
+- **前端迁移**：在已有认证、导航、帮助/重命名/标签、快捷启动及页头工具基础上，本批完成通用创建、JSON/Base64 编辑器、共享 CodeEditor 和 PageHeader 的 HeroUI 代码迁移。保留六类创建、五种受管协议、AnyTLS 真实加密字段、原 API/路由，以及 Monaco/schema/修复、Base64 双栏、全屏和失败草稿。部分编辑器新文案仍待四语翻译。
+- **本批修复**：独立每次弹窗打开的草稿身份，旧可见弹窗不能在新点击时借用替换账号的会话；Schema 请求取消与旧结果隔离、编辑器事件/marker 清理、剪贴板成功确认均有回归。修复上一批浏览器发现的外部链接被拼成面板相对路径问题，补充快速键盘重开菜单的焦点处理；这些新修复尚未部署复验。
+- **已知未修**：不经 logout 的 token A→B 替换，未统一清理旧 NiceModal 状态及结算 `show()` Promise。默认测试保留首次挂载前的待显示弹窗复现，明确标为 TODO，不计作通过；没有上传半成品全局 Provider 重构。同一 args 对象在同一个 React 批次内 hide→show 的极端身份检测仍有限制。
+- **本地验证**：默认测试共 441 项，其中 440 通过（87 + 151 + 202），1 项明确 TODO，0 项未标记失败、0 项跳过；全仓 TypeScript、lint、改动文件格式及 diff 检查通过。本机只做检查，应用仍只在 GitHub Actions 编译。本批推送后的编译结果待确认，不能继承上一批成功结果。
+- **已成功构建及当前 VPS**：Frontend `6c7933ca` 的 [Actions](https://github.com/FengYuchen1314/frontend/actions/runs/33980493558) 和 Backend `41edfd05` + Frontend `6c7933ca` 的 [精确配套镜像](https://github.com/FengYuchen1314/backend/actions/runs/33980572760) 已成功。该镜像已在本次收尾前部署到隔离面板，digest 为 `sha256:661a863541cd53b3e128c4ca2d628bb564f862948e37472305f43900a7f23a5b`。升级前已备份，2 个编排、6 个完整配置、4 个 Host 和订阅设置深度比较保持不变；其他运行中容器 ID 未变。本轮只读确认面板运行中、PDF HTTP 200，没有再次升级 VPS。
+- **验收边界**：当前镜像只完成版本弹窗的部分焦点循环、Escape 关闭和焦点恢复实测，同时发现外链及快速键盘重开问题；不代表全部浏览器验收完成。新增创建/编辑器、Monaco worker、双栏滚动、移动端、RTL、主题和混合弹层仍待新镜像验收。整站 30 个页面及全部弹层的 HeroUI 迁移没有完成，Mantine 依赖尚未移除。
+
+原始功能主体已有实现及分项证据，仍需混合协议共享 443 完整联测、七地区各三组独立非 Cloudflare CDN 域名池、一键更新故障恢复、跨物理服务器编排及国内入口转发联合验收。Clash Verge/Mihomo 和所有伪装域名禁止 Cloudflare CDN 的约束不变，单台大陆探测不能保证全国或长期可用。
+
+完整增量、已知问题和验证边界见 [Frontend 检查点](https://github.com/FengYuchen1314/frontend/blob/97540c5efcb6ccb2f6379a7a25c9b86ee37655f1/docs/heroui-g0-checkpoint.md)。私钥、token、私有测试配置、数据库备份及临时文件不上传；既有服务和测试数据未删除。
+
+## 上一批汇总：Frontend `6c7933ca`
 
 当前 Frontend 检查点为 `6c7933ca172eab7fe321fd74971528ddb09a0c43`，分支 `wip/shared-443-ui`。本次仅汇总、检查并上传已有进度，不新增功能、不部署 VPS、不合并主分支或更新发布标签；Backend 本次只有进度文档变更，Node 保持 `0e8ae34f`。
 
