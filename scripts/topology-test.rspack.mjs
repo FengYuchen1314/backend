@@ -9,6 +9,7 @@ export default {
     entry: {
         'anytls-panel.test': './scripts/anytls-panel-acceptance.ts',
         'anytls-material.postgres.test': './src/modules/anytls/anytls-material.postgres.test.ts',
+        'anytls-usage.postgres.test': './src/modules/anytls/anytls-usage.postgres.test.ts',
         'anytls-clients.test':
             './src/modules/subscription-template/generators/anytls-clients.linux.test.ts',
         'topology-clients.test':

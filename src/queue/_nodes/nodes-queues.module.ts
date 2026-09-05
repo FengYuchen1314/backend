@@ -1,5 +1,8 @@
 import { CqrsModule } from '@nestjs/cqrs';
 
+import { AnyTlsUsageRepository } from '@modules/anytls/anytls-usage.repository';
+import { AnyTlsUsageService } from '@modules/anytls/anytls-usage.service';
+
 import { QUEUES_NAMES } from '@queue/queue.enum';
 import { createDomainQueueModule } from '@queue/queue.factory';
 
@@ -39,4 +42,5 @@ export const NodesQueuesModule = createDomainQueueModule({
     queues,
     service: NodesQueuesService,
     imports: [CqrsModule],
+    extraProviders: [AnyTlsUsageRepository, AnyTlsUsageService],
 });

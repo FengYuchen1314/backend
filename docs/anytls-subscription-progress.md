@@ -74,10 +74,15 @@ Functional commit: `cce23429e53af4ca72a31bc963665e3e3d36bae9`.
   remained healthy, with HTTP 200 on port 38100. No live panel was upgraded.
 - [Paired image 33959392932](https://github.com/FengYuchen1314/backend/actions/runs/33959392932)
   uses frontend `db3fc697571735f5dc38ac1044d9c96ad676566c`. Validation and frontend
-  compilation passed; image packaging/publication was **still running** when this
-  checkpoint was written. Do not infer an accepted image digest from this note.
+  compilation passed; publication subsequently succeeded. The image is
+  `ghcr.io/fengyuchen1314/backend@sha256:2ae511b4be799bb18ebc59e8493184669dbac0b73ba43a0e0b054ba2406d3390`.
+  It has not been deployed to the live test panel.
 
 ## Accounting boundary still to implement
+
+The following describes the boundary at this subscription checkpoint. The later
+implementation and its verification status are tracked in
+[AnyTLS cumulative accounting](anytls-cumulative-accounting.md).
 
 `RecordUserUsageQueueProcessor` currently polls only native Xray `getUsersStats`
 with `reset: true`. Node's AnyTLS `/stats` also advances its durable `billed` cursor

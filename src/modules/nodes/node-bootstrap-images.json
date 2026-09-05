@@ -1,5 +1,5 @@
 {
-  "node": "ghcr.io/fengyuchen1314/node@sha256:ee7f59d444689c4dd438c438407c921da999b1cca10cd876600eeac4f9eecbee",
+  "node": "ghcr.io/fengyuchen1314/node@sha256:3293d71dcab6838d470e3da70bd56661509847fef5966adafffe6ff1f8dfd286",
   "haproxy": "docker.io/library/haproxy@sha256:6343ce34a132a5dceaa24767d739df2bd519f8f7c1079ae39e4821334e8eb42e",
   "caddy": "docker.io/library/caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
 }

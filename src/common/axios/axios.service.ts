@@ -409,6 +409,27 @@ export class AxiosService {
         });
     }
 
+    public async getAnyTlsUsage(opts: INodeConnectionOpts): Promise<TResult<TAnyTlsUsageResponse>> {
+        const result = await this.request<{ response: unknown }>({
+            label: 'GET ANYTLS CUMULATIVE USAGE',
+            path: ANYTLS_USAGE_PATH,
+            opts,
+            method: 'get',
+            timeout: 15000,
+            logAxiosError: false,
+            notFoundResponse: { available: false },
+        });
+        if (!result.isOk) return result;
+        const parsed = AnyTlsUsageResponseSchema.safeParse(result.response);
+        return parsed.success
+            ? ok(parsed.data)
+            : fail(
+                  ERRORS.NODE_ERROR_WITH_MSG.withMessage(
+                      'Invalid cumulative AnyTLS usage response.',
+                  ),
+              );
+    }
+
     public async getIpsList(
         data: GetUserIpListCommand.Request,
         opts: INodeConnectionOpts,
@@ -654,3 +675,8 @@ export class AxiosService {
         };
     }
 }
+import {
+    ANYTLS_USAGE_PATH,
+    AnyTlsUsageResponseSchema,
+    TAnyTlsUsageResponse,
+} from '@libs/contracts/models';

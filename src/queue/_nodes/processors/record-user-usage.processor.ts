@@ -18,6 +18,8 @@ import {
     INTERNAL_CACHE_KEYS_TTL,
 } from '@libs/contracts/constants';
 
+import { AnyTlsUsageService } from '@modules/anytls/anytls-usage.service';
+
 import { UsersQueuesService } from '@queue/_users';
 import { PushFromRedisQueueService } from '@queue/push-from-redis/push-from-redis.service';
 import { QUEUES_NAMES } from '@queue/queue.enum';
@@ -39,6 +41,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
         private readonly usersQueuesService: UsersQueuesService,
         private readonly pushFromRedisQueueService: PushFromRedisQueueService,
         private readonly rawCacheService: RawCacheService,
+        private readonly anyTlsUsage: AnyTlsUsageService,
     ) {
         super();
 
@@ -48,6 +51,16 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
     async process(job: Job<IRecordUserUsagePayload>) {
         try {
             const { nodeUuid, connectionOpts, consumptionMultiplier, nodeId } = job.data;
+            // The native reset-based pipeline is unchanged. An AnyTLS poll or
+            // database failure cannot consume its counters or suppress native usage.
+            let anyTlsOnline: string[] = [];
+            try {
+                anyTlsOnline = await this.anyTlsUsage.poll(job.data);
+            } catch {
+                this.logger.error(
+                    `Cumulative AnyTLS usage for node ${nodeUuid} was not committed; a later poll will retry.`,
+                );
+            }
 
             const queryResult = await this.axios.getUsersStats(
                 {
@@ -67,11 +80,12 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
                         BigInt(nodeId),
                         queryResult.response,
                         consumptionMultiplier,
+                        anyTlsOnline,
                     );
                 case false:
                     await this.rawCacheService.set(
                         CACHE_KEYS.NODE_USERS_ONLINE(nodeUuid),
-                        0,
+                        anyTlsOnline.length,
                         CACHE_KEYS_TTL.NODE_USERS_ONLINE,
                     );
 
@@ -96,6 +110,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
         nodeId: bigint,
         response: GetUsersStatsCommand.Response['response'],
         consumptionMultiplier: string,
+        anyTlsOnline: string[] = [],
     ) {
         const start = performance.now();
 
@@ -103,7 +118,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
             if (response.users.length === 0) {
                 await this.rawCacheService.set(
                     CACHE_KEYS.NODE_USERS_ONLINE(nodeUuid),
-                    0,
+                    anyTlsOnline.length,
                     CACHE_KEYS_TTL.NODE_USERS_ONLINE,
                 );
 
@@ -119,6 +134,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
             const nodeRedisKey = INTERNAL_CACHE_KEYS.NODE_USER_USAGE(nodeId);
 
             const pipeline = this.rawCacheService.createPipeline();
+            const online = new Set(anyTlsOnline);
 
             response.users.forEach((user) => {
                 try {
@@ -134,6 +150,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
                 }
 
                 pipeline.hincrby(nodeRedisKey, user.username, totalBytes);
+                online.add(user.username);
 
                 userUsageList[userUsageIndex++] = {
                     u: user.username,
@@ -148,7 +165,7 @@ export class RecordUserUsageQueueProcessor extends WorkerHost {
 
             await this.rawCacheService.set(
                 CACHE_KEYS.NODE_USERS_ONLINE(nodeUuid),
-                userUsageIndex,
+                online.size,
                 CACHE_KEYS_TTL.NODE_USERS_ONLINE,
             );
 

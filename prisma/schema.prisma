@@ -212,6 +212,7 @@ model Nodes {
   connectedUsers               UserTraffic[]
   nodeMetas                    NodeMeta[]
   edgeConfig                   NodeEdgeConfig?
+  anyTlsUsageLedgers           AnyTlsUsageLedger[]
   torrentBlockerReports        TorrentBlockerReports[]
 
   activeConfigProfile ConfigProfiles? @relation(fields: [activeConfigProfileUuid], references: [uuid], onDelete: SetNull)
@@ -474,6 +475,20 @@ model AnyTlsMaterial {
   inbound     ConfigProfileInbounds @relation(fields: [inboundUuid], references: [uuid], onDelete: Cascade)
 
   @@map("anytls_materials")
+}
+
+// Cumulative Agent epochs are deduplicated per physical server, independently of
+// native reset-based accounting. Cursor and billing changes commit together.
+model AnyTlsUsageLedger {
+  nodeUuid          String   @map("node_uuid") @db.Uuid
+  epoch             String   @db.Uuid
+  counters          Json     @default("{}")
+  nodeRemainderNano BigInt   @default(0) @map("node_remainder_nano")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  node              Nodes    @relation(fields: [nodeUuid], references: [uuid], onDelete: Cascade)
+
+  @@id([nodeUuid, epoch])
+  @@map("anytls_usage_ledgers")
 }
 
 model ConfigProfileInboundsToNodes {

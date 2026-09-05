@@ -48,3 +48,4 @@ export * from './path-params.schema';
 export * from './host-mapper';
 export * from './ssh-terminal.schema';
 export * from './anytls-capabilities.schema';
+export * from './anytls-usage.schema';

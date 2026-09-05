@@ -4,7 +4,7 @@ test_dir="$(realpath -- "${1:?Private extracted AnyTLS panel test directory requ
 runtime_image="${2:?Verified backend image digest required}"
 [[ "$test_dir" == /opt/xboard-anytls-panel-test.* && "$(dirname -- "$test_dir")" == /opt ]]
 [[ "$runtime_image" =~ ^ghcr.io/fengyuchen1314/backend@sha256:[a-f0-9]{64}$ ]]
-[[ -s "$test_dir/anytls-material.postgres.test.cjs" ]]
+[[ -s "$test_dir/anytls-material.postgres.test.cjs" && -s "$test_dir/anytls-usage.postgres.test.cjs" ]]
 read -r source_commit < "$test_dir/SOURCE_COMMIT"
 [[ "$source_commit" =~ ^[a-f0-9]{40}$ ]]
 suffix="${test_dir##*.}"
@@ -53,5 +53,5 @@ docker run --rm --name "$runner" --network "$network" --read-only \
   --tmpfs /tmp:rw,nosuid,nodev,size=128m \
   --mount "type=bind,src=$test_dir,dst=/opt/anytls-panel-test,readonly" \
   --env NODE_PATH=/opt/app/node_modules --env "EDGE_DATABASE_TEST_URL=$test_url" \
-  --entrypoint /usr/local/bin/node "$runtime_image" --test /opt/anytls-panel-test/anytls-material.postgres.test.cjs
-printf 'PASS: full image migrations and compiled AnyTLS PostgreSQL identity acceptance in private disposable database\n'
+  --entrypoint /usr/local/bin/node "$runtime_image" --test /opt/anytls-panel-test/anytls-material.postgres.test.cjs /opt/anytls-panel-test/anytls-usage.postgres.test.cjs
+printf 'PASS: full image migrations and compiled AnyTLS PostgreSQL identity/accounting acceptance in private disposable database\n'
