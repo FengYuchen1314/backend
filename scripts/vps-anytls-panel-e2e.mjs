@@ -15,7 +15,7 @@ const save = (name, data) => writeFile(`/test/${name}`, data, { mode: 0o600, fla
 if (phase === 'setup') {
     assert.equal(
         process.env.__RW_METADATA_GIT_BACKEND_COMMIT,
-        '6c2105e30df3ac0c46619ec73eb76b9dbf40d19f',
+        process.env.E2E_EXPECTED_BACKEND_COMMIT ?? '6c2105e30df3ac0c46619ec73eb76b9dbf40d19f',
     );
     const password = randomBytes(32).toString('hex');
     await save(
@@ -33,7 +33,9 @@ if (phase === 'setup') {
             'WORKER_INSTANCES=1',
             'NODE_OPTIONS=--max-old-space-size=512',
             'FRONT_END_DOMAIN=*',
-            'PANEL_DOMAIN=localhost',
+            process.env.E2E_BOOTSTRAP === 'true'
+                ? 'PANEL_DOMAIN=https://localhost:34445'
+                : 'PANEL_DOMAIN=localhost',
             'SUB_PUBLIC_DOMAIN=localhost/api/sub',
             'REDIS_HOST=redis',
             'REDIS_PORT=6379',
@@ -85,7 +87,12 @@ http://127.0.0.1:18080, http://127.0.0.1:18443 {
     );
     process.exit(0);
 }
-if (phase === 'resolve-camouflage') {
+if (phase === 'installed-certificate') {
+    const identity = JSON.parse(Buffer.from(process.env.SECRET_KEY, 'base64').toString('utf8'));
+    // A bootstrap redemption issues a fresh leaf. Export only that public leaf,
+    // never the environment, private key, CA key or credentials.
+    await save('installed-agent-cert.pem', identity.nodeCertPem);
+} else if (phase === 'resolve-camouflage') {
     const serverName = 'lax1.vultrobjects.com';
     await save(
         'camouflage.json',
@@ -181,6 +188,16 @@ if (phase === 'resolve-camouflage') {
         process.stdout.write(
             'PASS: real panel bootstrap, disposable administrator and API-issued Agent credentials\n',
         );
+    } else if (phase === 'grant-bootstrap') {
+        const grant = await api('/nodes/actions/bootstrap', 'POST', {
+            nodePort: 28443,
+            serverType: 'PUBLIC_DIRECT',
+        });
+        assert.equal(typeof grant.installCommand, 'string');
+        assert(grant.installCommand.includes('https://localhost:34445/api/nodes/bootstrap/redeem'));
+        assert(!/ghcr\.io|github\.com|--insecure|\| bash/.test(grant.installCommand));
+        await save('bootstrap-entry.sh', `${grant.installCommand}\n`);
+        process.stdout.write('PASS: real panel issued the original panel-only installer command\n');
     } else if (phase === 'configure') {
         const { serverName, address } = JSON.parse(await read('camouflage.json'));
         const profile = await api('/config-profiles', 'POST', {
@@ -213,13 +230,14 @@ if (phase === 'resolve-camouflage') {
             activeInternalSquads: [squad.uuid],
             trafficLimitBytes: 0,
         });
-        // Managed creation is still disabled until its UI/bootstrap work is accepted.
-        // Exercise the existing external-import API without claiming managed creation.
+        // Keep the original external-import checkpoint replayable; a new managed
+        // acceptance must explicitly request and satisfy the creation whitelist.
         const node = await api('/nodes', 'POST', {
             name: 'E2E AnyTLS Agent',
             address: 'agent',
             port: 28443,
-            creationMode: 'EXTERNAL_IMPORT',
+            creationMode:
+                process.env.E2E_MANAGED_CREATION === 'true' ? 'MANAGED' : 'EXTERNAL_IMPORT',
             serverType: 'PUBLIC_DIRECT',
             consumptionMultiplier: 0.5,
             nodeConsumptionMultiplier: 2,
@@ -276,7 +294,7 @@ if (phase === 'resolve-camouflage') {
         process.stdout.write(
             'PASS: real profile, entitlement, user, Node startup and encrypted Mihomo subscription generation\n',
         );
-    } else if (phase === 'verify' || phase === 'reconcile') {
+    } else if (phase === 'verify' || phase === 'verify-new-traffic' || phase === 'reconcile') {
         const fixture = JSON.parse(await read('fixture.json'));
         if (phase === 'reconcile') {
             const requestedAt = Date.now();
@@ -300,8 +318,13 @@ if (phase === 'resolve-camouflage') {
         const prisma = new PrismaClient();
         try {
             const keys = await prisma.keygen.findFirstOrThrow();
-            const issuedFingerprint = new X509Certificate(await read('agent-cert.pem'))
-                .fingerprint256;
+            const issuedFingerprint = new X509Certificate(
+                await read(
+                    process.env.E2E_BOOTSTRAP === 'true'
+                        ? 'installed-agent-cert.pem'
+                        : 'agent-cert.pem',
+                ),
+            ).fingerprint256;
             const canon = (pem) =>
                 pem.replace(/-----[^-]+-----/g, '').replace(/[^A-Za-z0-9+/=]/g, '');
             const ikm = Buffer.concat([
@@ -415,7 +438,11 @@ if (phase === 'resolve-camouflage') {
             const prior = await read('accepted-usage.json')
                 .then(JSON.parse)
                 .catch(() => null);
-            if (prior) assert.deepEqual(snapshot, prior);
+            if (phase === 'verify-new-traffic') {
+                assert(prior);
+                assert.equal(snapshot.epoch, prior.epoch);
+                assert(raw > BigInt(prior.users[0].uplink) + BigInt(prior.users[0].downlink));
+            } else if (prior) assert.deepEqual(snapshot, prior);
             else await save('accepted-usage.json', JSON.stringify(snapshot));
             process.stdout.write(
                 `PASS: native subscription traffic -> real Agent -> scheduled panel worker -> PostgreSQL and user API; raw=${raw} charged=${charged}; repeated polling is unchanged\n`,
