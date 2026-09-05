@@ -93,3 +93,19 @@ checking complete row equality, publication state, versions and timestamps insid
 test transaction. Both CI and image publication now run the seed regression. A corrected Actions
 image still must pass restart/upgrade preservation on the VPS before acceptance is complete.
 Only disposable acceptance records were affected; this is not evidence of damage to production data.
+
+## Mixed-runtime bootstrap regression
+
+The startup audit also found `syncInbounds` unconditionally instantiating `XRayConfig`, unlike the
+existing create/edit services. A valid stored Mieru profile has `listeners`, not Xray `inbounds`,
+so startup throws `Config doesn't have inbounds.` before the panel starts. An actual-seeder unit
+test with both Mieru and SOCKS profiles reproduced this failure. Startup now chooses the existing
+Mieru parser for Mieru profiles and retains the original Xray path for other profiles. No new
+runtime or alternate storage is introduced. The regression repeats synchronization without any
+inbound replacement; PostgreSQL coverage additionally checks the inbound, node, Host and binding
+rows inside a rolled-back transaction.
+
+The paired frontend separately corrects the generated Mieru listener default from forbidden port
+443 to 24443; both the existing browser validator and backend contract require ports 1025–65535.
+The preset regression now checks that range. These source fixes still require the new Actions
+pair and actual VPS cold-start acceptance; the earlier 22e2/d6bc image run was deliberately cancelled.

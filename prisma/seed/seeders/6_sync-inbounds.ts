@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import consola from 'consola';
 
+import { isMieruProfileConfig, MieruConfig } from '@common/helpers/mieru-config';
 import { XRayConfig } from '@common/helpers/xray-config';
 import { diffInbounds } from '@common/utils/inbounds';
 
@@ -12,7 +13,9 @@ export async function syncInbounds(prisma: PrismaClient) {
     for (const configProfile of configProfiles) {
         consola.start(`Syncing ${configProfile.name}...`);
 
-        const validatedConfig = new XRayConfig(configProfile.config as object);
+        const validatedConfig = isMieruProfileConfig(configProfile.config)
+            ? new MieruConfig(configProfile.config)
+            : new XRayConfig(configProfile.config as object);
 
         const existingInbounds = await prisma.configProfileInbounds.findMany({
             where: {

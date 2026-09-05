@@ -96,7 +96,7 @@ jobs:
           DATABASE_URL: postgresql://edge_test:disposable-ci-password@127.0.0.1:5432/edge_test
           DIRECT_URL: postgresql://edge_test:disposable-ci-password@127.0.0.1:5432/edge_test
           EDGE_DATABASE_TEST_URL: postgresql://edge_test:disposable-ci-password@127.0.0.1:5432/edge_test
-        run: npm run migrate:deploy && npm run test:edge-settings && npm run test:topology-db
+        run: npm run migrate:deploy && npm run test:edge-settings && npm run test:topology-db && npm run test:seed-db
 
       - name: Build
         run: npm run build
