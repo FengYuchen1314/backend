@@ -95,3 +95,20 @@ were imported and no Node credentials were written. The source now uses the port
 option, retaining fail-closed verification. A Linux regression shim rejects GNU-only options
 even on Actions' GNU host. A new Actions image and real first-install retest are still required;
 the earlier API acceptance alone does not establish a working installation.
+
+Revision `5dfc917a` passed the portable installer tests in both Actions validation runs, but
+the standalone CI again failed one native Mihomo chain case (30/31 passed). The separate image
+validation passed 31/31. A listening SOCKS port is not application readiness: upstream
+[ApplyConfig](https://github.com/MetaCubeX/mihomo/blob/v1.19.30/hub/executor/executor.go)
+opens listeners before `tunnel.OnRunning()`, and
+[handleTCPConn](https://github.com/MetaCubeX/mihomo/blob/v1.19.30/tunnel/tunnel.go)
+closes non-inner connections until that state is reached. The failed case logged initialization
+but no routed TCP connection, consistent with that window; the earlier half-close fix alone
+did not eliminate startup races.
+
+The topology harness now reuses the Node repository's separately tested application-readiness
+fixture. A nonce challenge has its own loopback-only DIRECT rule and never warms the tested
+chain. All eight topology requests still execute once, and exact per-hop connection counts
+remain mandatory. Unit tests reject an open-but-not-ready SOCKS frontend, a wrong challenge,
+and an exited client; readiness has a bounded deadline. Native Actions/VPS verification of
+this harness correction remains required.

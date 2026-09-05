@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
+import { createMihomoTestReadiness } from '../../../../scripts/mihomo-test-readiness.mjs';
 import { MihomoGeneratorService } from './mihomo.generator.service';
 import { SingBoxGeneratorService } from './singbox.generator.service';
 import { bound, id } from './topology-test-fixtures';
@@ -239,13 +240,16 @@ for (const scenario of scenarios.flatMap((item) =>
             skip: !enabled,
             timeout: 90_000,
         },
-        async () => {
+        async (t) => {
             const binary =
                 process.env[
                     scenario.format === 'MIHOMO' ? 'RW_MIHOMO_BINARY' : 'RW_SINGBOX_BINARY'
                 ];
             assert.ok(binary, 'A checksum-verified official binary is required');
             const directory = await mkdtemp(path.join(os.tmpdir(), 'rw-topology-client-'));
+            const readiness =
+                scenario.format === 'MIHOMO' ? await createMihomoTestReadiness() : null;
+            if (readiness) t.after(() => readiness.close());
             const allowedPorts = new Set<number>();
             const echo = http.createServer((_request, response) => response.end('topology-ok'));
             const targetPort = await listen(echo);
@@ -320,7 +324,10 @@ for (const scenario of scenarios.flatMap((item) =>
                 // Selecting the published virtual node is a client action, not a server-side default change.
                 const entry = `${item.topology.name} [${item.topology.uuid}]`;
                 if (scenario.format === 'MIHOMO') {
-                    config.rules = [`MATCH,${entry}`];
+                    // The native client opens SOCKS before tunnel.OnRunning(). Only the
+                    // readiness challenge gets a separate loopback DIRECT rule; all eight
+                    // acceptance requests still use the generated topology without retries.
+                    config.rules = [readiness!.rule, `MATCH,${entry}`];
                     for (const group of config['proxy-groups']) {
                         if (group.type === 'load-balance') {
                             assert.equal(group.url, 'https://health.example.invalid/generate_204');
@@ -360,6 +367,11 @@ for (const scenario of scenarios.flatMap((item) =>
                     logs += chunk.toString();
                 });
                 await waitForPort(clientPort, child);
+                if (readiness)
+                    await readiness.wait(
+                        clientPort,
+                        () => child!.exitCode === null && child!.signalCode === null,
+                    );
                 if (scenario.balanced) {
                     for (
                         let attempt = 0;
@@ -377,6 +389,12 @@ for (const scenario of scenarios.flatMap((item) =>
                         'Both entries must pass a real health probe',
                     );
                 }
+                assert.ok(
+                    fixtures.every((fixture) =>
+                        fixture.connections.every((port) => port === healthPort),
+                    ),
+                    'Readiness must not warm up or retry the actual topology path',
+                );
                 for (let request = 0; request < 8; request++)
                     assert.equal(await requestThrough(clientPort, targetPort), 'topology-ok');
                 if (scenario.balanced) {
