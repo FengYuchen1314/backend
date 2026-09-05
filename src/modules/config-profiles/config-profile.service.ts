@@ -5,7 +5,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 
 import { isMieruProfileConfig, MieruConfig } from '@common/helpers/mieru-config';
-import { XRayConfig } from '@common/helpers/xray-config';
+import { ManagedXrayProfile } from '@common/helpers/xray-config/managed-xray-profile';
 import { RawCacheService } from '@common/raw-cache';
 import { fail, ok, TResult } from '@common/types';
 import { diffInbounds } from '@common/utils/inbounds';
@@ -97,8 +97,8 @@ export class ConfigProfileService {
                 snippetsMap.set(snippet.name, snippet.snippet);
             }
 
-            const config = new XRayConfig(configProfile.config as object);
-            config.replaceSnippets(snippetsMap);
+            const config = new ManagedXrayProfile(configProfile.config as object);
+            config.xray.replaceSnippets(snippetsMap);
 
             configProfile.config = config.getSortedConfig();
 
@@ -148,7 +148,7 @@ export class ConfigProfileService {
 
             const validatedConfig = isMieruProfileConfig(config)
                 ? new MieruConfig(config)
-                : new XRayConfig(config);
+                : new ManagedXrayProfile(config);
             const sortedConfig =
                 validatedConfig instanceof MieruConfig
                     ? validatedConfig.getConfig()
@@ -280,12 +280,12 @@ export class ConfigProfileService {
 
             const validatedConfig = isMieruProfileConfig(config)
                 ? new MieruConfig(config)
-                : new XRayConfig(config);
+                : new ManagedXrayProfile(config);
 
-            if (validatedConfig instanceof XRayConfig) {
-                validatedConfig.cleanInboundClients(false);
-                validatedConfig.fixIncorrectServerNames();
-                validatedConfig.validateOutbounds();
+            if (validatedConfig instanceof ManagedXrayProfile) {
+                validatedConfig.xray.cleanInboundClients(false);
+                validatedConfig.xray.fixIncorrectServerNames();
+                validatedConfig.xray.validateOutbounds();
             }
 
             const sortedConfig =
@@ -427,6 +427,6 @@ export class ConfigProfileService {
     private getValidatedConfig(config: object): object {
         return isMieruProfileConfig(config)
             ? new MieruConfig(config).getConfig()
-            : new XRayConfig(config).getSortedConfig();
+            : new ManagedXrayProfile(config).getSortedConfig();
     }
 }

@@ -87,7 +87,16 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
             const profileUsesMieru = nodes.some((node) =>
                 node.activeInbounds.some((inbound) => inbound.type.toLowerCase() === 'mieru'),
             );
-            if (profileUsesMieru) {
+            const requiresIndividualReconciliation =
+                profileUsesMieru ||
+                nodes.some(
+                    (node) =>
+                        node.serverType === SERVER_TYPES.PUBLIC_DIRECT ||
+                        node.activeInbounds.some(
+                            (inbound) => inbound.type.toLowerCase() === 'anytls',
+                        ),
+                );
+            if (requiresIndividualReconciliation) {
                 const hasMixedRuntimeNode = nodes.some(
                     (node) =>
                         node.activeInbounds.length > 0 &&
@@ -95,7 +104,7 @@ export class StartAllNodesByProfileQueueProcessor extends WorkerHost {
                             (inbound) => inbound.type.toLowerCase() === 'mieru',
                         ),
                 );
-                if (hasMixedRuntimeNode) {
+                if (profileUsesMieru && hasMixedRuntimeNode) {
                     this.logger.error(
                         `Profile ${payload.profileUuid} mixes Xray and Mieru inbounds; refusing bulk start.`,
                     );

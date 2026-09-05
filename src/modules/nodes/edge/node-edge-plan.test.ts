@@ -1,12 +1,114 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { anyTlsConfigFixture, anyTlsInbound } from '@modules/anytls/anytls.test-fixtures';
 import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 
 import { prepareNodeEdge } from './node-edge-plan';
 
 const VISION_UUID = '11111111-1111-4111-8111-111111111111';
 const XHTTP_UUID = '22222222-2222-4222-8222-222222222222';
+
+test('mixed shared-443 edge targets only the AnyTLS wrapper, reserves both private ports and keeps SNI unique', () => {
+    const vision = realityInbound(XHTTP_UUID, 'VISION', 'raw', ['vision.example.com']);
+    const initial = prepareNodeEdge({ inbounds: [vision.config] }, [vision.entity], {});
+    const anyTls = anyTlsConfigFixture();
+    anyTls.listeners[0].wrapperPort = initial.plan.routes[0].targetPort;
+    const result = prepareNodeEdge(
+        { inbounds: [vision.config] },
+        [anyTlsInbound(), vision.entity],
+        {},
+        undefined,
+        anyTls,
+    );
+    const anyRoute = result.plan.routes.find((route) => route.inboundTag === 'ANYTLS_A')!;
+    const vlessRoute = result.plan.routes.find((route) => route.inboundTag === 'VISION')!;
+    assert.equal(anyRoute.targetPort, anyTls.listeners[0].wrapperPort);
+    assert.equal(anyRoute.sendProxyV2, false);
+    assert.equal(vlessRoute.sendProxyV2, true);
+    assert.notEqual(vlessRoute.targetPort, anyTls.listeners[0].wrapperPort);
+    assert.notEqual(vlessRoute.targetPort, anyTls.listeners[0].innerPort);
+    assert.equal(
+        result.plan.routes.some((route) => route.targetPort === anyTls.listeners[0].innerPort),
+        false,
+    );
+    assert.equal(
+        result.fingerprint,
+        prepareNodeEdge(
+            { inbounds: [vision.config] },
+            [vision.entity, anyTlsInbound()],
+            {},
+            undefined,
+            anyTls,
+        ).fingerprint,
+    );
+    assert.doesNotMatch(JSON.stringify(result.plan), /Password|privateKey|certificate/);
+});
+
+test('mixed edge rejects missing or extra identities, cross-runtime ports/tags/SNI and website overlap', () => {
+    const native = realityInbound(XHTTP_UUID, 'VISION', 'raw', ['cover.example.com']);
+    assert.throws(() => prepareNodeEdge({ inbounds: [] }, [anyTlsInbound()], {}), /missing/);
+    assert.throws(
+        () => prepareNodeEdge({ inbounds: [] }, [], {}, undefined, anyTlsConfigFixture()),
+        /active inbound/,
+    );
+    assert.throws(
+        () =>
+            prepareNodeEdge(
+                { inbounds: [] },
+                [new ConfigProfileInboundEntity({ ...anyTlsInbound(), uuid: XHTTP_UUID })],
+                {},
+                undefined,
+                anyTlsConfigFixture(),
+            ),
+        /active inbound/,
+    );
+    assert.throws(
+        () =>
+            prepareNodeEdge(
+                { inbounds: [native.config] },
+                [native.entity, anyTlsInbound()],
+                {},
+                undefined,
+                anyTlsConfigFixture(),
+            ),
+        /unique SNI/,
+    );
+    assert.throws(
+        () =>
+            prepareNodeEdge(
+                { inbounds: [] },
+                [anyTlsInbound()],
+                { website: { domains: ['cover.example.com'], upstream: 'http://127.0.0.1:8080' } },
+                undefined,
+                anyTlsConfigFixture(),
+            ),
+        /share SNI/,
+    );
+    for (const port of [14001, '14442-14444', '1080,14001'])
+        assert.throws(
+            () =>
+                prepareNodeEdge(
+                    { inbounds: [{ tag: 'OTHER', port }] },
+                    [anyTlsInbound()],
+                    {},
+                    undefined,
+                    anyTlsConfigFixture(),
+                ),
+            /overlaps/,
+        );
+    assert.throws(
+        () =>
+            prepareNodeEdge(
+                { inbounds: [{ tag: 'ANYTLS_A', port: 1080 }] },
+                [anyTlsInbound()],
+                {},
+                undefined,
+                anyTlsConfigFixture(),
+            ),
+        /tags overlap/,
+    );
+});
 
 test('numeric string 443 is rewritten and non-single shared ports are rejected', () => {
     const inbound = realityInbound(VISION_UUID, 'VISION', 'raw', ['cover.example.com']);

@@ -450,6 +450,8 @@ model ConfigProfileInbounds {
 
   rawInbound Json? @map("raw_inbound")
 
+  anyTlsMaterial AnyTlsMaterial?
+
   profile ConfigProfiles @relation(fields: [profileUuid], references: [uuid], onDelete: Cascade)
 
   hosts                        Hosts[]
@@ -459,6 +461,19 @@ model ConfigProfileInbounds {
   @@unique([tag])
   @@index([profileUuid, uuid])
   @@map("config_profile_inbounds")
+}
+
+// Private runtime identity is separate from profile/host JSON and subscriber-facing raw inbounds.
+model AnyTlsMaterial {
+  inboundUuid String                @id @map("inbound_uuid") @db.Uuid
+  revision    Int                   @default(1)
+  material    Json                  @map("material")
+  expiresAt   DateTime              @map("expires_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @default(now()) @updatedAt @map("updated_at")
+  inbound     ConfigProfileInbounds @relation(fields: [inboundUuid], references: [uuid], onDelete: Cascade)
+
+  @@map("anytls_materials")
 }
 
 model ConfigProfileInboundsToNodes {
@@ -648,7 +663,7 @@ model NodeEdgeConfig {
   nodeId   BigInt @id @map("node_id")
   revision Int
   settings Json
-  node     Nodes @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  node     Nodes  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@map("node_edge_config")
 }

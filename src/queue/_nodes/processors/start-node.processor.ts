@@ -10,7 +10,7 @@ import { AxiosService } from '@common/axios/axios.service';
 import { RawCacheService } from '@common/raw-cache';
 import { formatExecutionTime, getTime } from '@common/utils/get-elapsed-time';
 import { CACHE_KEYS, CACHE_KEYS_TTL, EVENTS, SERVER_TYPES } from '@libs/contracts/constants';
-import { TNodeEdgePlan } from '@libs/contracts/models';
+import { TAnyTlsConfig, TNodeEdgePlan } from '@libs/contracts/models';
 
 import { NodeEvent } from '@integration-modules/notifications/interfaces';
 
@@ -59,6 +59,7 @@ export class StartNodeProcessor extends WorkerHost {
     }
 
     async process(job: Job<IStartNodePayload>) {
+        let ownsConnectingState = false;
         try {
             const { nodeUuid, force, retryIfBusy } = job.data;
 
@@ -115,7 +116,11 @@ export class StartNodeProcessor extends WorkerHost {
             const isMieruRuntime = mieruInboundCount === node.activeInbounds.length;
 
             if (mieruInboundCount > 0 && !isMieruRuntime) {
-                throw new Error('Xray and Mieru inbounds cannot share one physical node runtime.');
+                await this.markStartFailure(
+                    node.uuid,
+                    'Xray and Mieru inbounds cannot share one physical node runtime.',
+                );
+                return;
             }
 
             await this.commandBus.execute(
@@ -124,6 +129,8 @@ export class StartNodeProcessor extends WorkerHost {
                     isConnecting: true,
                 }),
             );
+
+            ownsConnectingState = true;
 
             const xrayStatusResponse = await this.axios.getNodeHealth({
                 address: node.address,
@@ -167,6 +174,49 @@ export class StartNodeProcessor extends WorkerHost {
                 return;
             }
 
+            const hasAnyTls = node.activeInbounds.some(
+                (inbound) => inbound.type.toLowerCase() === 'anytls',
+            );
+            let coordinatedStart = false;
+            if (!isMieruRuntime && (node.serverType === SERVER_TYPES.PUBLIC_DIRECT || hasAnyTls)) {
+                if (hasAnyTls && node.serverType !== SERVER_TYPES.PUBLIC_DIRECT) {
+                    await this.markStartFailure(
+                        node.uuid,
+                        'Managed AnyTLS requires a public-direct shared-443 server.',
+                    );
+                    return;
+                }
+                const capabilities = await this.axios.getAnyTlsCapabilities({
+                    address: node.address,
+                    port: node.port,
+                    proxyUrl: node.proxyUrl,
+                });
+                if (!capabilities.isOk) {
+                    await this.markStartFailure(
+                        node.uuid,
+                        'AnyTLS capability check failed; complete runtime reconciliation was not sent.',
+                    );
+                    return;
+                }
+                coordinatedStart =
+                    capabilities.response.available &&
+                    capabilities.response.coordinatedStartVersion === 1;
+                if (hasAnyTls && !coordinatedStart) {
+                    await this.markStartFailure(
+                        node.uuid,
+                        'Update the Agent with coordinated AnyTLS/edge support before using AnyTLS.',
+                    );
+                    return;
+                }
+                if (coordinatedStart && node.activePluginUuid) {
+                    await this.markStartFailure(
+                        node.uuid,
+                        'Legacy node plugins cannot be combined with coordinated AnyTLS/edge runtime. Remove the plugin assignment before starting.',
+                    );
+                    return;
+                }
+            }
+
             let plugin: {
                 uuid: string;
                 config: Record<string, unknown>;
@@ -179,7 +229,7 @@ export class StartNodeProcessor extends WorkerHost {
                 );
 
                 if (!getNodePluginResult.isOk) {
-                    this.logger.error(`Failed to get node plugin: ${getNodePluginResult.message}`);
+                    await this.markStartFailure(node.uuid, 'Failed to get node plugin.');
                     return;
                 }
                 const { response: nodePlugin } = getNodePluginResult;
@@ -190,7 +240,7 @@ export class StartNodeProcessor extends WorkerHost {
                 };
             }
 
-            if (!isMieruRuntime) {
+            if (!isMieruRuntime && !coordinatedStart) {
                 const syncNodePluginsResponse = await this.axios.syncNodePlugins(
                     {
                         plugin,
@@ -267,6 +317,11 @@ export class StartNodeProcessor extends WorkerHost {
                         .filter((integration) => integration !== undefined),
                 );
                 const xrayConfig = config.response as IGetPreparedConfigWithUsersResponse;
+                // An explicit empty list removes old listeners even after the profile extension
+                // was deleted. Omitting it would leave one half of the joint runtime stale.
+                const anyTlsConfig: TAnyTlsConfig | undefined = coordinatedStart
+                    ? (xrayConfig.anyTlsConfig ?? { version: 1, listeners: [] })
+                    : undefined;
                 let effectiveXrayConfig = xrayConfig.config as unknown as Record<string, unknown>;
                 let edgePlan: TNodeEdgePlan | undefined;
                 let emptyConfigHash = xrayConfig.hashesPayload.emptyConfig;
@@ -305,6 +360,7 @@ export class StartNodeProcessor extends WorkerHost {
                             node.activeInbounds,
                             edgeSettingsResult.response,
                             node.address,
+                            anyTlsConfig,
                         );
                         effectiveXrayConfig = preparedEdge.config;
                         edgePlan = preparedEdge.plan;
@@ -322,6 +378,7 @@ export class StartNodeProcessor extends WorkerHost {
                     {
                         xrayConfig: effectiveXrayConfig,
                         edgePlan,
+                        ...(anyTlsConfig ? { anyTlsConfig } : {}),
                         internals: {
                             hashes: {
                                 ...xrayConfig.hashesPayload,
@@ -422,10 +479,17 @@ export class StartNodeProcessor extends WorkerHost {
 
             return;
         } catch (error) {
-            this.logger.error(`Error handling "${NODES_JOB_NAMES.START_NODE}" job: ${error}`);
             if (error instanceof RetryableStartNodeBusyError) {
                 throw error;
             }
+            // Config preparation may contain private runtime identity; never log the error
+            // object or leave the node permanently busy after an unexpected preparation failure.
+            this.logger.error(`Error handling "${NODES_JOB_NAMES.START_NODE}" job.`);
+            if (ownsConnectingState)
+                await this.markStartFailure(
+                    job.data.nodeUuid,
+                    'Complete node configuration preparation or startup failed.',
+                );
         }
     }
 

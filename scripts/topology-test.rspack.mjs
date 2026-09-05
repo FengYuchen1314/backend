@@ -7,6 +7,8 @@ import base from '../rspack.config.mjs';
 export default {
     ...base,
     entry: {
+        'anytls-panel.test': './scripts/anytls-panel-acceptance.ts',
+        'anytls-material.postgres.test': './src/modules/anytls/anytls-material.postgres.test.ts',
         'topology-clients.test':
             './src/modules/subscription-template/generators/topology-clients.linux.test.ts',
     },

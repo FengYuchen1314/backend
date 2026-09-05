@@ -9,6 +9,7 @@ export interface INodeRequestOpts {
     logAxiosError?: boolean;
     method?: 'get' | 'post';
     timeout?: number;
+    notFoundResponse?: unknown;
 }
 
 export interface INodeConnectionOpts {

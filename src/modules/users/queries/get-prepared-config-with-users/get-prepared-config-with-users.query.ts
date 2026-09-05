@@ -5,12 +5,14 @@ import { Query } from '@nestjs/cqrs';
 import { StartXrayCommand } from '@remnawave/node-contract';
 
 import { TResult } from '@common/types';
+import { TAnyTlsConfig } from '@libs/contracts/models';
 
 import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 
 export interface IGetPreparedConfigWithUsersResponse {
     config: XrayConfig;
     hashesPayload: StartXrayCommand.Request['internals']['hashes'];
+    anyTlsConfig?: TAnyTlsConfig;
 }
 
 export class GetPreparedConfigWithUsersQuery extends Query<

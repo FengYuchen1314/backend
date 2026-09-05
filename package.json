@@ -34,6 +34,8 @@
     "lint:fix": "oxlint --fix",
     "test:edge-settings": "tsx --test src/modules/nodes/edge/node-edge-settings.test.ts src/modules/nodes/edge/node-edge-settings.postgres.test.ts",
     "test:topology": "tsx --test src/modules/subscription-template/generators/topology-subscription.test.ts",
+    "test:anytls": "tsx --test src/modules/anytls/anytls-identity.test.ts src/common/helpers/xray-config/managed-xray-profile.test.ts src/common/axios/anytls-capabilities.test.ts src/modules/users/queries/get-prepared-config-with-users/get-prepared-config-with-users.test.ts src/queue/_nodes/coordinated-start.test.ts",
+    "test:anytls-db": "tsx --test src/modules/anytls/anytls-material.postgres.test.ts",
     "test:topology-db": "tsx --test src/modules/topologies/topology.postgres.test.ts",
     "test:seed": "tsx --test prisma/seed/seeders/4_seed-subscription-template.test.ts prisma/seed/seeders/6_sync-inbounds.test.ts",
     "test:seed-db": "tsx --test prisma/seed/seeders/6_sync-inbounds.postgres.test.ts",

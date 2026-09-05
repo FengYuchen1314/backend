@@ -1,4 +1,6 @@
 import {
+    AnyTlsConfigSchema,
+    TAnyTlsConfig,
     CamouflageDomainSchema,
     NODE_EDGE_PLAN_VERSION,
     NodeEdgePlanSchema,
@@ -28,6 +30,7 @@ export function prepareNodeEdge(
     activeInbounds: readonly ConfigProfileInboundEntity[],
     settingsInput: unknown,
     publicNodeAddress?: string,
+    anyTlsInput?: TAnyTlsConfig,
 ): IPreparedNodeEdge {
     const settings = NodeEdgeSettingsSchema.parse(settingsInput ?? {});
     assertNoPublicListenerSelfLoop(settings, publicNodeAddress);
@@ -59,11 +62,49 @@ export function prepareNodeEdge(
         }
     }
 
+    const anyTls = anyTlsInput ? AnyTlsConfigSchema.parse(anyTlsInput) : undefined;
+    const anyTlsByTag = new Map(anyTls?.listeners.map((listener) => [listener.tag, listener]));
+    for (const listener of anyTls?.listeners ?? []) {
+        if (configInboundByTag.has(listener.tag)) throw new Error('Xray and AnyTLS tags overlap.');
+        const active = activeInbounds.filter(
+            (inbound) =>
+                inbound.tag === listener.tag &&
+                inbound.uuid === listener.id &&
+                inbound.type.toLowerCase() === 'anytls',
+        );
+        if (active.length !== 1)
+            throw new Error('Prepared AnyTLS listener does not match an active inbound.');
+        for (const port of [listener.wrapperPort, listener.innerPort]) {
+            if (occupiedPorts.has(port) || [15998, 15999].includes(port))
+                throw new Error('AnyTLS private port overlaps another runtime listener.');
+            occupiedPorts.add(port);
+        }
+    }
+
     const tagBySni = new Map<string, string>();
     const rewrittenTags = new Set<string>();
     const routes: TNodeEdgePlan['routes'] = [];
 
     for (const activeInbound of [...activeInbounds].sort(compareActiveInbounds)) {
+        if (activeInbound.type.toLowerCase() === 'anytls') {
+            const listener = anyTlsByTag.get(activeInbound.tag);
+            if (!listener || listener.id !== activeInbound.uuid)
+                throw new Error('Active AnyTLS inbound is missing from prepared config.');
+            const sni = listener.camouflage.serverName;
+            if (tagBySni.has(sni))
+                throw new Error(
+                    `Camouflage domain ${sni} is already assigned; every inbound needs a unique SNI.`,
+                );
+            tagBySni.set(sni, listener.tag);
+            routes.push({
+                sni,
+                targetHost: '127.0.0.1',
+                targetPort: listener.wrapperPort,
+                sendProxyV2: false,
+                inboundTag: listener.tag,
+            });
+            continue;
+        }
         const configInbound = configInboundByTag.get(activeInbound.tag);
         if (!configInbound) {
             throw new Error(`Active inbound ${activeInbound.tag} is missing from prepared config.`);

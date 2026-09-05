@@ -12,6 +12,7 @@ import { values } from '@common/helpers/kysely/values';
 import { ICrud } from '@common/types/crud-port';
 
 import { NodesEntity } from '../entities/nodes.entity';
+import { requiresFullUserSyncReload } from '../events/socks-user-sync';
 import { IReorderNode } from '../interfaces';
 import { NodesConverter } from '../nodes.converter';
 import { IGetEnabledNodesPartialResponse } from '../queries/get-enabled-nodes-partial/get-enabled-nodes-partial.query';
@@ -58,9 +59,8 @@ export class NodesRepository implements ICrud<NodesEntity> {
     public async findConnectedNodes(): Promise<NodesEntity[]> {
         const nodesList = await this.prisma.tx.nodes.findMany({
             where: {
-                isConnected: true,
+                OR: [{ isConnected: true }, { isConnecting: true }],
                 isDisabled: false,
-                isConnecting: false,
                 activeConfigProfileUuid: {
                     not: null,
                 },
@@ -68,7 +68,15 @@ export class NodesRepository implements ICrud<NodesEntity> {
             include: INCLUDE_RESOLVED_INBOUNDS,
         });
 
-        return nodesList.map((value) => new NodesEntity(value));
+        // Queue another complete snapshot if permissions change while a managed runtime
+        // is starting. Legacy incremental APIs retain their previous busy-node exclusion.
+        return nodesList
+            .map((value) => new NodesEntity(value))
+            .filter(
+                (node) =>
+                    !node.isConnecting ||
+                    requiresFullUserSyncReload(node.activeInbounds, node.serverType),
+            );
     }
 
     public async findConnectedNodesPartial(): Promise<IGetOnlineNodesPartialResponse[]> {

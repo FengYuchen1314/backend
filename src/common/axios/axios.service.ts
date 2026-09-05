@@ -1,5 +1,9 @@
 import { ERRORS } from '@contract/constants';
 import {
+    ANYTLS_CAPABILITIES_PATH,
+    AnyTlsCapabilitiesSchema,
+    TAnyTlsCapabilities,
+    TAnyTlsConfig,
     CAMOUFLAGE_DOMAIN_AGENT_VALIDATION_PATH,
     NODE_EDGE_STATUS_PATH,
     TCamouflageDomainAgentValidationReport,
@@ -246,6 +250,9 @@ export class AxiosService {
             }
 
             if (error instanceof AxiosError) {
+                if (error.response?.status === 404 && params.notFoundResponse !== undefined) {
+                    return ok(params.notFoundResponse as TResponse['response']);
+                }
                 if (logAxiosError) {
                     this.logger.error(`Error in Axios ${label} request: ${error.message}`);
                 }
@@ -272,7 +279,7 @@ export class AxiosService {
      */
 
     public async startXray(
-        data: StartXrayCommand.Request & { edgePlan?: TNodeEdgePlan },
+        data: StartXrayCommand.Request & { edgePlan?: TNodeEdgePlan; anyTlsConfig?: TAnyTlsConfig },
         opts: INodeConnectionOpts,
     ): Promise<TResult<StartXrayCommand.Response['response']>> {
         return this.request<StartXrayCommand.Response>({
@@ -284,6 +291,27 @@ export class AxiosService {
             logAxiosError: false,
             timeout: 60_000,
         });
+    }
+
+    public async getAnyTlsCapabilities(
+        opts: INodeConnectionOpts,
+    ): Promise<TResult<TAnyTlsCapabilities>> {
+        const result = await this.request<{ response: unknown }>({
+            label: 'GET ANYTLS CAPABILITIES',
+            path: ANYTLS_CAPABILITIES_PATH,
+            opts,
+            method: 'get',
+            logAxiosError: false,
+            timeout: 15_000,
+            // Only an authenticated 404 means a legacy Agent. Timeouts, 401/403 and malformed
+            // responses must fail closed, not silently select the partial-update protocol.
+            notFoundResponse: { available: false, coordinatedStartVersion: null },
+        });
+        if (!result.isOk) return result;
+        const parsed = AnyTlsCapabilitiesSchema.safeParse(result.response);
+        return parsed.success
+            ? ok(parsed.data)
+            : fail(ERRORS.NODE_ERROR_WITH_MSG.withMessage('Invalid AnyTLS capability response.'));
     }
 
     public async getNodeEdgeStatus(

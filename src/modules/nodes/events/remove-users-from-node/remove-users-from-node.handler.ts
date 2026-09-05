@@ -33,7 +33,7 @@ export class RemoveUsersFromNodeHandler implements IEventHandler<RemoveUsersFrom
             };
 
             for (const node of nodes) {
-                if (requiresFullUserSyncReload(node.activeInbounds)) {
+                if (requiresFullUserSyncReload(node.activeInbounds, node.serverType)) {
                     await this.nodesQueuesService.startNode({
                         nodeUuid: node.uuid,
                         force: true,

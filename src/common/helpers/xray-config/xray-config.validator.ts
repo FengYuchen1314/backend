@@ -70,7 +70,7 @@ const ALLOWED_NETWORKS = new Set([
     'xhttp',
 ]);
 
-interface InboundsWithTagsAndType {
+export interface InboundsWithTagsAndType {
     tag: string;
     type: string;
     network: string | null;
@@ -86,7 +86,10 @@ export class XRayConfig {
     private inbounds: InboundConfig[] = [];
     private inboundsByTag: Record<string, InboundConfig> = {};
 
-    constructor(configInput: TCtrXRayConfig) {
+    constructor(
+        configInput: TCtrXRayConfig,
+        private readonly options: { allowEmptyInbounds?: boolean } = {},
+    ) {
         this.config = this.parseConfig(configInput);
         this.validate();
         this.indexInbounds();
@@ -458,7 +461,10 @@ export class XRayConfig {
     }
 
     private validate(): void {
-        if (!this.config.inbounds || this.config.inbounds.length === 0) {
+        if (
+            !this.config.inbounds ||
+            (this.config.inbounds.length === 0 && !this.options.allowEmptyInbounds)
+        ) {
             throw new Error("Config doesn't have inbounds.");
         }
 

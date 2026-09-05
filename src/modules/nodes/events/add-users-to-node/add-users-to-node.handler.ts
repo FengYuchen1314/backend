@@ -49,7 +49,7 @@ export class AddUsersToNodeHandler implements IEventHandler<AddUsersToNodeEvent>
             if (activeNodes.length === 0) return;
 
             for (const node of activeNodes) {
-                if (requiresFullUserSyncReload(node.activeInbounds)) {
+                if (requiresFullUserSyncReload(node.activeInbounds, node.serverType)) {
                     await this.nodesQueuesService.startNode({
                         nodeUuid: node.uuid,
                         force: true,
@@ -65,8 +65,6 @@ export class AddUsersToNodeHandler implements IEventHandler<AddUsersToNodeEvent>
 
                 for (const user of usersResult.response) {
                     const { id, trojanPassword, vlessUuid, ssPassword, inbounds } = user;
-
-                    if (inbounds.length === 0) continue;
 
                     const filteredInbounds = inbounds.filter((ib) => activeTags.has(ib.tag));
 

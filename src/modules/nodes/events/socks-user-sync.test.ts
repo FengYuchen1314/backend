@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { NodesRepository } from '../repositories/nodes.repository';
 import { AddUserToNodeEvent } from './add-user-to-node';
 import { AddUserToNodeHandler } from './add-user-to-node/add-user-to-node.handler';
 import { AddUsersToNodeEvent } from './add-users-to-node';
@@ -14,6 +15,57 @@ import { RemoveUsersFromNodeHandler } from './remove-users-from-node/remove-user
 const socksInbound = { tag: 'SOCKS', type: 'socks', rawInbound: null };
 const mieruInbound = { tag: 'MIERU', type: 'mieru', rawInbound: null };
 const vlessInbound = { tag: 'VLESS', type: 'vless', rawInbound: null };
+const anyTlsInbound = { tag: 'ANYTLS', type: 'anytls', rawInbound: null };
+
+test('managed user sync includes connecting nodes while legacy hot-update nodes remain excluded when busy', async () => {
+    let where: unknown;
+    const rows = [
+        {
+            uuid: 'public-starting',
+            serverType: 'PUBLIC_DIRECT',
+            isConnecting: true,
+            configProfileInboundsToNodes: [],
+        },
+        {
+            uuid: 'anytls-starting',
+            isConnecting: true,
+            configProfileInboundsToNodes: [{ configProfileInbounds: anyTlsInbound }],
+        },
+        {
+            uuid: 'legacy-busy',
+            isConnecting: true,
+            configProfileInboundsToNodes: [{ configProfileInbounds: vlessInbound }],
+        },
+        {
+            uuid: 'legacy-ready',
+            isConnecting: false,
+            configProfileInboundsToNodes: [{ configProfileInbounds: vlessInbound }],
+        },
+    ];
+    const repository = new NodesRepository(
+        {
+            tx: {
+                nodes: {
+                    async findMany(input: { where: unknown }) {
+                        where = input.where;
+                        return rows;
+                    },
+                },
+            },
+        } as never,
+        {} as never,
+        {} as never,
+    );
+    assert.deepEqual(
+        (await repository.findConnectedNodes()).map((node) => node.uuid),
+        ['public-starting', 'anytls-starting', 'legacy-ready'],
+    );
+    assert.deepEqual((where as { OR: unknown }).OR, [
+        { isConnected: true },
+        { isConnecting: true },
+    ]);
+    assert.equal(Object.hasOwn(where as object, 'isConnecting'), false);
+});
 
 const buildNode = (uuid: string, activeInbounds: object[]) => ({
     uuid,
@@ -31,6 +83,65 @@ const user = {
     ssPassword: 'ss-password',
     inbounds: [socksInbound, vlessInbound],
 };
+
+test('AnyTLS users and empty entitlements trigger complete reloads on public-direct nodes for all event types', async () => {
+    for (const inbounds of [[anyTlsInbound, mieruInbound], []]) {
+        const starts: unknown[] = [];
+        const nodes = [
+            buildNode('anytls-node', [anyTlsInbound]),
+            {
+                ...buildNode('joint-vless-node', [vlessInbound]),
+                serverType: 'PUBLIC_DIRECT',
+                isConnecting: true,
+            },
+        ];
+        const queues = {
+            async startNode(data: unknown) {
+                starts.push(data);
+            },
+        };
+        const repository = {
+            async findConnectedNodes() {
+                return nodes;
+            },
+            async findConnectedNodesWithInboundsForRemoval() {
+                return nodes;
+            },
+        };
+        const current = { ...user, inbounds };
+        await new AddUserToNodeHandler(
+            repository as never,
+            queues as never,
+            {
+                async execute() {
+                    return { isOk: true, response: current };
+                },
+            } as never,
+        ).handle(new AddUserToNodeEvent(user.id));
+        await new AddUsersToNodeHandler(
+            repository as never,
+            queues as never,
+            {
+                async execute() {
+                    return { isOk: true, response: [current] };
+                },
+            } as never,
+        ).handle(new AddUsersToNodeEvent([user.id]));
+        await new RemoveUserFromNodeHandler(repository as never, queues as never).handle(
+            new RemoveUserFromNodeEvent(user.id, user.vlessUuid),
+        );
+        await new RemoveUsersFromNodeHandler(repository as never, queues as never).handle(
+            new RemoveUsersFromNodeEvent([user]),
+        );
+        assert.deepEqual(
+            starts,
+            Array.from({ length: 4 }, () => [
+                { nodeUuid: 'anytls-node', force: true, retryIfBusy: true },
+                { nodeUuid: 'joint-vless-node', force: true, retryIfBusy: true },
+            ]).flat(),
+        );
+    }
+});
 
 test('single-user add reloads SOCKS and Mieru nodes and preserves Xray hot updates', async () => {
     const starts: unknown[] = [];

@@ -41,12 +41,8 @@ export class AddUserToNodeHandler implements IEventHandler<AddUserToNodeEvent> {
 
             const { id, trojanPassword, vlessUuid, ssPassword, inbounds } = userEntity.response;
             const handlerInbounds = inbounds.filter(
-                (inbound) => inbound.type.toLowerCase() !== 'socks',
+                (inbound) => !['socks', 'mieru', 'anytls'].includes(inbound.type.toLowerCase()),
             );
-
-            if (inbounds.length === 0) {
-                return;
-            }
 
             const nodes = await this.nodesRepository.findConnectedNodes();
 
@@ -113,7 +109,7 @@ export class AddUserToNodeHandler implements IEventHandler<AddUserToNodeEvent> {
                     continue;
                 }
 
-                if (requiresFullUserSyncReload(node.activeInbounds)) {
+                if (requiresFullUserSyncReload(node.activeInbounds, node.serverType)) {
                     await this.nodesQueuesService.startNode({
                         nodeUuid: node.uuid,
                         force: true,

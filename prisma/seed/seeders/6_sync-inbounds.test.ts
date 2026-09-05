@@ -5,6 +5,9 @@ import { test } from 'node:test';
 
 import { MieruConfig } from '@common/helpers/mieru-config';
 import { XRayConfig } from '@common/helpers/xray-config';
+import { ManagedXrayProfile } from '@common/helpers/xray-config/managed-xray-profile';
+
+import { anyTlsProfile } from '@modules/anytls/anytls.test-fixtures';
 
 import { syncInbounds } from './6_sync-inbounds';
 
@@ -23,8 +26,15 @@ test('startup sync accepts mixed Mieru/Xray profiles and preserves unchanged inb
     const profiles = [
         { uuid: 'mieru-profile', name: 'Mieru', config: mieru },
         { uuid: 'xray-profile', name: 'Xray', config: xray },
+        { uuid: 'anytls-profile', name: 'AnyTLS', config: anyTlsProfile() },
     ];
     const rows = new Map([
+        [
+            'anytls-profile',
+            new ManagedXrayProfile(anyTlsProfile())
+                .getAllInbounds()
+                .map((row) => ({ ...row, uuid: 'stable-anytls-inbound' })),
+        ],
         [
             'mieru-profile',
             new MieruConfig(mieru)
