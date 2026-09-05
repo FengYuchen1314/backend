@@ -142,7 +142,11 @@ do not enable AnyTLS; panel-only, checksum-verified downloads and `pull_policy:
 never` remain in place.
 
 Local installer/unit/type checks passed (the two Linux-only shell suites are
-skipped on Windows). Actions compilation/Linux execution and a real panel-only
-installer run with this change still need acceptance. This does not upgrade
+skipped on Windows). Backend commit `2b2cebc4d86441405710cb39705c61bbbc7b55c4`
+passed CI 33963996525, including actual Linux Bash/curl execution, and paired image
+33963996595 with frontend `a0c76738`. Image digest:
+`ghcr.io/fengyuchen1314/backend@sha256:4d9eca064de3d5f0389bcd34d135b912d0592d28a30b22a48bb75be7b05fff5a`.
+The real panel-only installer/container-replacement test is in progress separately.
+This does not upgrade
 existing Agents, enable the managed-creation UI, or establish volume persistence
 under an actual installer-created container replacement.
