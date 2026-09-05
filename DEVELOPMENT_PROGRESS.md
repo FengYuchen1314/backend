@@ -1,5 +1,20 @@
 # 二次开发进度
 
+## 最新汇总与上传范围（2026-09-06）
+
+本次收拢已有代码和文档并上传 GitHub，不继续扩展功能、不部署 VPS、不合并主分支、不更新发布标签。下方早期检查点保留为历史记录；版本或状态冲突时以本节及对应的带版本验收文档为准。
+
+- **Bug 修复**：Frontend `3d369d5bea04768a165b176e9999702eec82fd6c` 已通过 [Actions](https://github.com/FengYuchen1314/frontend/actions/runs/33978702245)，包含 166 项测试、类型检查、全仓 lint 和编译。新增认证单一状态源、内部组选择草稿隔离，以及 Vault 原子 reset/恢复和事务失败处理。Backend 最近功能代码仍为 `c5b9d397`，本次只更新进度文档。
+- **HeroUI 第一阶段**：已安装并接入 HeroUI/Tailwind，改写认证、快捷入口、实体深链、错误页，以及加载/连接状态等公共组件，并拆出相关表单与工作流 model。这是部分代码迁移，不是整站完成；其余后台页面、复杂表格和大量弹窗仍使用 Mantine。此次将这批改动保存到 Frontend `wip/shared-443-ui`，详见 [G0 检查点](https://github.com/FengYuchen1314/frontend/blob/wip/shared-443-ui/docs/heroui-g0-checkpoint.md)。
+- **VPS 实测**：当前部署仍是 Backend `c5b9d397` + Frontend `eb8f1790` 的 [Actions 镜像](https://github.com/FengYuchen1314/backend/actions/runs/33976781168)，digest 为 `sha256:e7d3a434cd0f81a590d9e2aa7811dfbd9d4f5c5e2b928c0ce3250bebbb247e61`。响应头/备注连续保存、入站视口、滚动、筛选、选择和取消重开已做部分真实浏览器验证。2 个编排、6 个完整配置、4 个 Host 保持原样；其他容器未变，PDF HTTP 为 200。详见 [实测版本与边界](https://github.com/FengYuchen1314/frontend/blob/wip/shared-443-ui/docs/bugfix-browser-acceptance.md)。
+- **未验收部分**：`3d369d5b` 新修复和 HeroUI 尚未部署到此 VPS，不能继承旧版浏览器结论。硬件 Passkey、真实浏览器 IndexedDB、多账号竞态、移动端/RTL/主题和旧样式共存仍需验收。
+- **可用构建**：Backend `7638fc84` + Frontend `3d369d5b` 的 [配套镜像 Actions](https://github.com/FengYuchen1314/backend/actions/runs/33978702407) 已成功。它只包含前一批修复，不包含此次 HeroUI 代码；本次不升级测试面板。
+- **原始需求**：功能与已有证据见下方对照表。混合协议共用 443 完整联测、七地区各三组独立非 Cloudflare CDN 域名池、一键更新故障恢复、跨物理服务器编排尚未完成。Clash Verge/Mihomo 仍为主要客户端，禁止 Cloudflare CDN 的约束不变。
+
+仓库分支为 [Backend](https://github.com/FengYuchen1314/backend/tree/wip/shared-443-backend)、[Frontend](https://github.com/FengYuchen1314/frontend/tree/wip/shared-443-ui)、[Node](https://github.com/FengYuchen1314/node/tree/wip/shared-443-node)。Node 保持 `0e8ae34f`，此次无代码修改。私钥、token、私有环境配置、数据库备份及本机临时文件不上传。
+
+## 以下为此前检查点记录
+
 更新日期：2026-09-06。本次仅汇总并上传已有进度，不继续功能开发或部署 VPS。当前为开发分支检查点，尚未完成全部需求验收，不作为生产发布。
 
 ## 仓库与版本
