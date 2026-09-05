@@ -47,3 +47,15 @@ script. Windows explicitly skips the Linux cases; Actions must run them before i
 Actions image packaging, authenticated full-panel downloads and an isolated VPS first install
 still require acceptance. These shell fixtures do not establish real Node health, shared-443
 traffic, Mieru traffic, AnyTLS integration or the panel update workflow.
+
+Initial Actions checkpoint `610437ee`: all 84 ordinary tests passed on Linux with no skips,
+including the actual Bash/curl failure scenarios. One CI run then failed in the existing native
+Mihomo topology tests with intermittent socket termination; the image validation job passed the
+same tests. A separate deterministic half-close regression exposed premature EOF in the SOCKS
+test fixture (not production proxy code). Its correction passed ten local repetitions; native
+CI is increased to ten repetitions per scenario to check the remaining intermittent failure.
+
+The first image packaging job failed because Docker's classic image store cannot overwrite a
+multi-architecture index digest with its other architecture. Packaging now resolves each Linux
+child descriptor from the same pinned index and pulls that child digest independently. The
+source lock remains unchanged. Neither failed run produced an accepted deployment image.

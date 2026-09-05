@@ -64,7 +64,9 @@ async function socksFixture(number: number, allowedPorts: Set<number>) {
         socket.setTimeout(10_000, () => socket.destroy());
         return socket;
     };
-    const server = net.createServer((client) => {
+    // A TCP proxy must keep the response direction open after a request-side FIN.
+    // Otherwise Node auto-ends the client before the upstream response can arrive.
+    const server = net.createServer({ allowHalfOpen: true }, (client) => {
         track(client);
         void (async () => {
             const greeting = await readExactly(client, 2);
@@ -92,7 +94,7 @@ async function socksFixture(number: number, allowedPorts: Set<number>) {
             const port = (await readExactly(client, 2)).readUInt16BE();
             assert.equal(address, '127.0.0.1');
             assert.ok(allowedPorts.has(port));
-            const upstream = track(net.connect({ host: '127.0.0.1', port }));
+            const upstream = track(net.connect({ host: '127.0.0.1', port, allowHalfOpen: true }));
             await once(upstream, 'connect');
             connections.push(port);
             client.write(Buffer.from([5, 0, 0, 1, 127, 0, 0, 1, 0, 0]));
@@ -127,6 +129,50 @@ async function stop(child: ChildProcess) {
         await exited;
     }
 }
+
+test('SOCKS fixture preserves a delayed response after the client half-closes its request', async () => {
+    const targetSockets = new Set<Socket>();
+    const echo = net.createServer({ allowHalfOpen: true }, (socket) => {
+        targetSockets.add(socket);
+        socket.on('error', () => {});
+        socket.once('close', () => targetSockets.delete(socket));
+        socket.resume();
+        socket.once('end', () => {
+            setTimeout(() => socket.end('half-close-response-intact'), 25);
+        });
+    });
+    const target = await listen(echo);
+    const fixture = await socksFixture(1, new Set([target]));
+    const client = net.connect({ host: '127.0.0.1', port: fixture.port, allowHalfOpen: true });
+    client.setTimeout(3000, () => client.destroy(new Error('Half-close fixture timed out')));
+    try {
+        await once(client, 'connect');
+        client.write(Buffer.from([5, 1, 2]));
+        assert.deepEqual(await readExactly(client, 2), Buffer.from([5, 2]));
+        const username = Buffer.from('user-1');
+        const password = Buffer.from('private-1');
+        client.write(
+            Buffer.concat([
+                Buffer.from([1, username.length]),
+                username,
+                Buffer.from([password.length]),
+                password,
+            ]),
+        );
+        assert.deepEqual(await readExactly(client, 2), Buffer.from([1, 0]));
+        client.write(Buffer.from([5, 1, 0, 1, 127, 0, 0, 1, target >> 8, target & 255]));
+        assert.equal((await readExactly(client, 10))[1], 0);
+        client.end('GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+        const chunks: Buffer[] = [];
+        for await (const chunk of client) chunks.push(chunk);
+        assert.match(Buffer.concat(chunks).toString(), /half-close-response-intact/);
+    } finally {
+        client.destroy();
+        await fixture.close();
+        for (const socket of targetSockets) socket.destroy();
+        await new Promise<void>((accept) => echo.close(() => accept()));
+    }
+});
 
 async function waitForPort(port: number, child: ChildProcess) {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -182,8 +228,10 @@ const scenarios = [
     { format: 'MIHOMO', balanced: true },
     { format: 'SINGBOX', balanced: false },
 ] as const;
+const repetitions = Number(process.env.RW_TOPOLOGY_TEST_REPETITIONS ?? 3);
+assert(Number.isInteger(repetitions) && repetitions >= 3 && repetitions <= 20);
 for (const scenario of scenarios.flatMap((item) =>
-    [1, 2, 3].map((repetition) => ({ ...item, repetition })),
+    Array.from({ length: repetitions }, (_, index) => ({ ...item, repetition: index + 1 })),
 )) {
     test(
         `real ${scenario.format} subscription follows ${scenario.balanced ? 'two balanced entries into one exit' : 'A → B → destination'} (run ${scenario.repetition})`,

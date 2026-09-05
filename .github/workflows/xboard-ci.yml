@@ -99,6 +99,8 @@ jobs:
         run: npm test && npm run test:topology && npm run test:seed
 
       - name: Test generated topology subscriptions with real clients
+        env:
+          RW_TOPOLOGY_TEST_REPETITIONS: 10
         run: bash scripts/test-topology-clients.sh
 
       - name: Generate Prisma client

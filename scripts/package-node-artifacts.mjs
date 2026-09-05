@@ -8,6 +8,8 @@ import { join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
 
+import { resolvePlatformSource } from './node-artifact-platforms.mjs';
+
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Image packaging belongs in GitHub Actions');
 const directory = resolve('.xboard-node-artifacts');
 await mkdir(directory); // Do not merge with an old/partial catalog.
@@ -19,12 +21,20 @@ for (const [role, source] of Object.entries(images)) {
         source,
         /^(ghcr\.io\/fengyuchen1314\/node|docker\.io\/library\/(haproxy|caddy))@sha256:[a-f0-9]{64}$/,
     );
+    const index = JSON.parse(
+        execFileSync('docker', ['buildx', 'imagetools', 'inspect', '--raw', source], {
+            encoding: 'utf8',
+        }),
+    );
     for (const arch of ['amd64', 'arm64']) {
+        // The classic Docker image store cannot bind one index digest to two architectures.
+        // Pull each pinned child descriptor instead; never resolve a mutable tag.
+        const platformSource = resolvePlatformSource(source, index, arch);
         const imageTag = `localhost/xboard-${role}:${source.split('@sha256:')[1]}-${arch}`;
-        execFileSync('docker', ['pull', '--platform', `linux/${arch}`, source], {
+        execFileSync('docker', ['pull', '--platform', `linux/${arch}`, platformSource], {
             stdio: 'inherit',
         });
-        execFileSync('docker', ['tag', source, imageTag], { stdio: 'inherit' });
+        execFileSync('docker', ['tag', platformSource, imageTag], { stdio: 'inherit' });
         const inspect = () =>
             JSON.parse(
                 execFileSync('docker', ['image', 'inspect', imageTag], { encoding: 'utf8' }),

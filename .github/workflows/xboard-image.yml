@@ -86,6 +86,8 @@ jobs:
         run: npm test && npm run test:topology && npm run test:seed
 
       - name: Test generated topology subscriptions with real clients
+        env:
+          RW_TOPOLOGY_TEST_REPETITIONS: 10
         run: bash scripts/test-topology-clients.sh
 
       - name: Generate Prisma client
@@ -177,7 +179,7 @@ jobs:
           echo "Paired backend $GITHUB_SHA with frontend $frontend_commit and contract $(git rev-parse HEAD:libs/contract)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package pinned Node and edge images for panel-only bootstrap downloads
-        run: node scripts/package-node-artifacts.mjs
+        run: node --test scripts/node-artifact-platforms.test.mjs && node scripts/package-node-artifacts.mjs
 
       - name: Build and push image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
