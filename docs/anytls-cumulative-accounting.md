@@ -51,8 +51,8 @@ retry, physical-node scoping, new epochs, counters above JavaScript's safe integ
 range, disabled optional history and deleted users. Actions and VPS execution of
 these database tests passed at the accepted checkpoint below.
 
-Managed creation, installer enablement/state mounts, complete native-client to
-real-panel accounting and live-panel rollout remain separate acceptance work.
+Managed creation and installer enablement/state mounts remain separate acceptance
+work. The full native-client to real-panel accounting checkpoint is recorded below.
 
 ## Accepted accounting checkpoint — 2026-09-05
 
@@ -93,6 +93,40 @@ confirmation. Frontend `406ebfee` passed CI 33961619989; the follow-up source is
 `a0c767388740106c2e87e1841d6b9ff42f83fbd3` (38 local tests/typecheck/changed-file lint
 passed). The obsolete intermediate paired run 33961934000 was intentionally
 cancelled. [Paired run 33962077276](https://github.com/FengYuchen1314/backend/actions/runs/33962077276)
-uses backend `6c2105e3` and this final frontend revision; it was still running when
-this checkpoint was written. Do not claim browser acceptance or an image digest
-for that new pair yet.
+uses backend `6c2105e3` and this final frontend revision and passed, as did frontend
+CI 33962077174. Its digest is
+`ghcr.io/fengyuchen1314/backend@sha256:95d4d756e14d507739d535b27ba3f4364a3a9a60bad9489f70e1ea5e03bff41f`.
+Browser acceptance is tracked separately from the accounting checkpoint.
+
+## Accepted full panel/client accounting — 2026-09-05
+
+The plain JavaScript/bash scripts `scripts/vps-anytls-panel-e2e.*` and
+`scripts/vps-anytls-panel-e2e-client.mjs` at `ac13d5e2` ran successfully on
+185.99.135.224 in `/opt/xboard-anytls-e2e.CGboXtdd` (`acceptance.log`, exit 0).
+They orchestrated the exact Actions-built backend image `13c84f2c…` above and
+Node image `3293d71d…`; no application or native code was compiled on the VPS.
+
+- A fresh real panel/database registered a disposable administrator and issued
+  actual Agent credentials. Its public API created the profile, entitlement,
+  numeric subscriber, Agent and host, and coordinated Agent startup.
+- The real Mihomo subscription's unchanged encrypted proxy bundle carried native
+  TCP traffic through shared port 443. The inner AnyTLS certificate pin and outer
+  ShadowTLS public-CA verification remained enabled.
+- Natural scheduled panel polling delivered 957 raw bytes to PostgreSQL and the
+  user API as 478 charged bytes at multiplier 0.5. Node multiplier 2, raw per-user
+  history, lifetime traffic, connection metadata and the cumulative cursor were
+  checked against the same Agent snapshot.
+- Two additional normal polling intervals left all totals unchanged. An actual
+  Agent container restart followed by the panel's accepted restart action and a
+  fresh completed connection status retained the same epoch and counters; another
+  two polling intervals still did not charge the bytes again.
+- All eight labelled fixture containers and their internal network were removed.
+  The original 16 container IDs and PDF HTTP 200 were unchanged. Private evidence
+  remains on the VPS; credentials and subscriber configuration are not committed.
+
+This uses `EXTERNAL_IMPORT` for creation and manually mounts persistent Agent
+state in an isolated namespace. It is **not** managed creation, installer,
+browser, UDP, public website/ACME, or power-loss acceptance. Earlier attempts
+exposed orchestration mistakes (DNS namespace, numeric user identity, required
+restart body and empty accepted response); only the final successful run above
+is the complete end-to-end checkpoint.
