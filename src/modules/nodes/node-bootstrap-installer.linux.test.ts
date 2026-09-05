@@ -59,6 +59,17 @@ test(
                 const log = join(directory, 'docker.log');
                 try {
                     await mkdir(join(directory, 'bin'));
+                    // Reject GNU-only flags even when the Actions host itself uses coreutils.
+                    // The actual Alpine VPS fixture reproduced this failure with BusyBox sha256sum.
+                    await writeFile(
+                        join(directory, 'bin/sha256sum'),
+                        `#!/usr/bin/env bash
+set -eu
+[[ "$#" -eq 1 && "$1" == '-c' ]] || { echo 'Checksum flags are not portable' >&2; exit 99; }
+exec /usr/bin/sha256sum "$@"
+`,
+                        { mode: 0o755 },
+                    );
                     await mkdir(install);
                     if (scenario === 'existing')
                         await writeFile(join(install, '.env'), 'preserve-me');

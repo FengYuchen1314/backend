@@ -65,7 +65,7 @@ while read -r filename checksum size image_id image_tag; do
     --request POST --header 'Content-Type: application/json' --data-binary "@\${DOWNLOAD_DIR}/request.json" \
     '${downloads.panelOrigin}${ARTIFACT_ROUTE}' --output "\${DOWNLOAD_DIR}/$filename"
   [[ "$(wc -c <"\${DOWNLOAD_DIR}/$filename")" -eq "$size" ]]
-  (cd "$DOWNLOAD_DIR"; printf '%s  %s\\n' "$checksum" "$filename" | sha256sum --check --status)
+  (cd "$DOWNLOAD_DIR"; printf '%s  %s\\n' "$checksum" "$filename" | sha256sum -c >/dev/null)
 done <"\${DOWNLOAD_DIR}/images.tsv"
 while read -r filename checksum size image_id image_tag; do
   docker image load --input "\${DOWNLOAD_DIR}/$filename" >/dev/null

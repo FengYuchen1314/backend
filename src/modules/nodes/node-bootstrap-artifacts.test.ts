@@ -92,12 +92,13 @@ test('installer downloads every required image only from panel, verifies before 
         script,
         /compose[^\n]* pull|docker pull|--location|--insecure|ghcr\.io|docker\.io/,
     );
-    assert.match(script, /sha256sum --check/);
+    assert.match(script, /sha256sum -c >\/dev\/null/);
+    assert.doesNotMatch(script, /sha256sum --check|sha256sum[^\n]*--status/);
     assert.match(script, /docker image load/);
     assert.match(script, /docker image inspect/);
     assert.match(script, /pull_policy: never/);
     assert.match(script, /up --detach --pull never --no-build/);
-    assert(script.indexOf('sha256sum --check') < script.indexOf('docker image load'));
+    assert(script.indexOf('sha256sum -c') < script.indexOf('docker image load'));
     assert(script.indexOf('docker image inspect') < script.indexOf('REMNAWAVE_NODE_ENV'));
     assert.match(script, /Refusing to overwrite an existing Node installation/);
 });

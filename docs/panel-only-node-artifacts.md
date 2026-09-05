@@ -44,9 +44,10 @@ stubbed to check side-effect ordering. It covers both architectures, corrupt/mis
 downloads, a mismatched loaded image, existing installation preservation and a truncated entry
 script. Windows explicitly skips the Linux cases; Actions must run them before image publication.
 
-Actions image packaging, authenticated full-panel downloads and an isolated VPS first install
-still require acceptance. These shell fixtures do not establish real Node health, shared-443
-traffic, Mieru traffic, AnyTLS integration or the panel update workflow.
+Actions image packaging and authenticated full-panel downloads have passed the acceptance
+checks below; the isolated VPS first install has not yet passed. These shell fixtures do not
+establish real Node health, shared-443 traffic, Mieru traffic, AnyTLS integration or the panel
+update workflow.
 
 Initial Actions checkpoint `610437ee`: all 84 ordinary tests passed on Linux with no skips,
 including the actual Bash/curl failure scenarios. One CI run then failed in the existing native
@@ -59,3 +60,38 @@ The first image packaging job failed because Docker's classic image store cannot
 multi-architecture index digest with its other architecture. Packaging now resolves each Linux
 child descriptor from the same pinned index and pulls that child digest independently. The
 source lock remains unchanged. Neither failed run produced an accepted deployment image.
+
+Revision `e76e9645` passed the full
+[backend CI](https://github.com/FengYuchen1314/backend/actions/runs/33943307737): 84 ordinary
+Linux tests with no skips, 31 native topology tests (ten repetitions per scenario plus the
+half-close regression), database checks, application compilation and OpenAPI generation.
+The Actions-compiled portable topology bundle then passed all ten tests on `185.99.135.224`.
+Its SHA-256 was verified locally and remotely:
+`1ab3516aef4480e2db17c9459fdd7f3aee27cf53ec6879606b3d5cc140a4ffcf`.
+The private bundle directory is `/opt/xboard-topology-test.IqrzkjDo`; its disposable container
+was removed. It used container-loopback networking only, no public ports or Docker socket.
+
+The separate first-install fixture at `/opt/xboard-bootstrap-test.p8C9jmTr` has an empty private
+Docker image store, an independent Docker data volume and only the internal test-panel network.
+Registry egress is unavailable. A loopback HTTPS relay rejects clients without its private trust
+anchor and succeeds with explicit CA verification. This daemon is a temporary privileged test
+container, not a production deployment recommendation, and does not receive the host Docker
+socket or host networking. Bash/curl were provisioned as test OS prerequisites before disconnecting
+Internet access. No Agent has yet been installed in this fixture. Both PDF containers remain
+healthy and their endpoint returned HTTP 200.
+
+The successful [paired image workflow](https://github.com/FengYuchen1314/backend/actions/runs/33943308182)
+published backend `e76e9645` with frontend `db3fc697`. The accepted image digest is
+`sha256:5fbb8308b159ae61ea50cb9c5ca1867b8a9ee6d3b4c7c8311fd234f8d6a362e2`.
+Before replacing only the owned test panel, its source-pair metadata, runtime channel and all
+six embedded archive hashes were verified. After replacement, both saved topology records and
+the Mieru manual mapping/shared profile were preserved exactly. The real authenticated API
+downloaded all six archives (390.3 MiB total), checking full sizes, hashes and response headers.
+Replayed bootstrap tokens, invalid grants, cross-role downloads and path traversal were rejected.
+
+Executing the API-generated installer on the registry-isolated Alpine engine then failed at
+checksum verification: BusyBox `sha256sum` rejects GNU's `--check --status` options. No images
+were imported and no Node credentials were written. The source now uses the portable `-c`
+option, retaining fail-closed verification. A Linux regression shim rejects GNU-only options
+even on Actions' GNU host. A new Actions image and real first-install retest are still required;
+the earlier API acceptance alone does not establish a working installation.
