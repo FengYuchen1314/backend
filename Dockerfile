@@ -1,4 +1,14 @@
 ARG FRONTEND_SOURCE=download
+ARG NODE_ARTIFACT_SOURCE=empty
+
+FROM alpine:3.19 AS node-artifacts-empty
+RUN mkdir /node-artifacts
+
+FROM alpine:3.19 AS node-artifacts-local
+COPY .xboard-node-artifacts/ /node-artifacts/
+RUN test -s /node-artifacts/manifest.json
+
+FROM node-artifacts-${NODE_ARTIFACT_SOURCE} AS node-artifacts
 
 FROM alpine:3.19 AS frontend-download
 WORKDIR /opt/frontend
@@ -111,6 +121,7 @@ ENV __RW_METADATA_BUILD_TIME=${__RW_METADATA_BUILD_TIME}
 ENV __RW_METADATA_BUILD_NUMBER=${__RW_METADATA_BUILD_NUMBER}
 
 COPY --from=backend-build /opt/app/dist ./dist
+COPY --from=node-artifacts /node-artifacts ./node-artifacts
 COPY --from=backend-build /opt/app/openapi.json ./openapi.json
 COPY --from=frontend /opt/frontend/frontend_temp/dist ./frontend
 COPY --from=backend-build /opt/app/prisma/generated ./prisma/generated

@@ -36,5 +36,6 @@ export const NODES_ROUTES = {
     },
     BOOTSTRAP: {
         REDEEM: 'bootstrap/redeem',
+        ARTIFACT: 'bootstrap/artifact',
     },
 } as const;

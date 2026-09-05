@@ -176,6 +176,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Paired backend $GITHUB_SHA with frontend $frontend_commit and contract $(git rev-parse HEAD:libs/contract)." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Package pinned Node and edge images for panel-only bootstrap downloads
+        run: node scripts/package-node-artifacts.mjs
+
       - name: Build and push image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
@@ -187,6 +190,7 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.image_tags }}
           build-args: |
+            NODE_ARTIFACT_SOURCE=local
             BRANCH=dev
             SOURCE_REPOSITORY=https://github.com/FengYuchen1314/backend
             FRONTEND_SOURCE=local

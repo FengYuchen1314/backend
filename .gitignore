@@ -73,5 +73,6 @@ prisma/generated/types.ts
 frontend/
 f.json
 .xboard-frontend/
+.xboard-node-artifacts/
 test-dist/
 topology-acceptance.tar.gz*

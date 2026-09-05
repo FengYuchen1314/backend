@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 
 import { CreateNodeBootstrapCommand, RedeemNodeBootstrapCommand } from '@libs/contracts/commands';
 import { ERRORS, SERVER_TYPES } from '@libs/contracts/constants';
 
+import { ARTIFACT_TTL_SECONDS, artifactCacheKey } from './node-bootstrap-artifacts';
+import { fixtureDownloads } from './node-bootstrap-test-fixtures';
 import { NodeBootstrapService } from './node-bootstrap.service';
 import {
     buildNodeBootstrapInstallCommand,
-    CADDY_BOOTSTRAP_IMAGE,
     getNodeBootstrapCacheKey,
-    HAPROXY_BOOTSTRAP_IMAGE,
-    NODE_BOOTSTRAP_IMAGE,
     NODE_BOOTSTRAP_TTL_SECONDS,
     normalizePanelOrigin,
     renderNodeBootstrapInstaller,
@@ -72,20 +72,27 @@ test('install command only contacts the panel and keeps the token out of the URL
 
     assert.match(command, /https:\/\/panel\.example\.com\/api\/nodes\/bootstrap\/redeem/);
     assert.doesNotMatch(command, new RegExp(`redeem/${token}`));
-    assert.match(command, /--data-raw '\{"token":"A{43}"\}'/);
+    assert.match(command, /\{"token":"A{43}"\}/);
     assert.doesNotMatch(command, /github\.com|ghcr\.io|SECRET_KEY/);
+    assert.doesNotMatch(command, /\| bash/);
+    assert.match(command, /--output "\$script"; bash "\$script"/);
 });
 
 test('installer writes protected panel-provided env and compose templates', () => {
-    const script = renderNodeBootstrapInstaller(2_222, VALID_NODE_SECRET);
+    const script = renderNodeBootstrapInstaller(
+        2_222,
+        VALID_NODE_SECRET,
+        SERVER_TYPES.PUBLIC_DIRECT,
+        fixtureDownloads(),
+    );
 
     assert.match(script, /^#!\/usr\/bin\/env bash/);
-    assert.match(script, new RegExp(`image: ${NODE_BOOTSTRAP_IMAGE.replaceAll('.', '\\.')}`));
+    assert.match(script, /image: \$\{XBOARD_NODE_IMAGE:/);
     assert.match(script, /NODE_PORT=2222/);
     assert.match(script, new RegExp(`SECRET_KEY=${VALID_NODE_SECRET}`));
     assert.match(script, /env_file:\n      - \.env/);
     assert.match(script, /chmod 600/);
-    assert.doesNotMatch(script, /curl|wget|github\.com/);
+    assert.doesNotMatch(script, /wget|github\.com|ghcr\.io|docker\.io/);
     assert.doesNotMatch(script, /ghcr\.io\/enfein\/mita|MITA_UDS_PATH/);
 });
 
@@ -94,10 +101,11 @@ test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars'
         2_222,
         VALID_NODE_SECRET,
         SERVER_TYPES.PUBLIC_DIRECT,
+        fixtureDownloads(),
     );
 
-    assert.match(script, new RegExp(HAPROXY_BOOTSTRAP_IMAGE.replaceAll('.', '\\.')));
-    assert.match(script, new RegExp(CADDY_BOOTSTRAP_IMAGE.replaceAll('.', '\\.')));
+    assert.match(script, /image: \$\{XBOARD_HAPROXY_IMAGE:/);
+    assert.match(script, /image: \$\{XBOARD_CADDY_IMAGE:/);
     assert.match(script, /EDGE_ENABLED=true/);
     assert.match(script, /EDGE_CONFIG_DIR=\/var\/lib\/remnanode\/edge/);
     assert.match(
@@ -117,12 +125,17 @@ test('public-direct installer adds pinned shared-443 HAProxy and Caddy sidecars'
     assert.match(script, /http:\/\/127\.0\.0\.1:18443 \{\n    bind 127\.0\.0\.1/);
     assert.match(script, /\.\/edge:\/var\/lib\/remnanode\/edge/);
     assert.match(script, /edge-run:\/var\/run\/xboard-edge/g);
-    assert.match(script, /haproxy:\n    image: [^\n]+\n    user: "0:0"/);
+    assert.match(script, /haproxy:\n    image: [^\n]+\n    pull_policy: never\n    user: "0:0"/);
     assert.match(script, /user haproxy\n    group haproxy/);
 });
 
 test('leased-line installer uses embedded isolated Mieru with persistent instance state', () => {
-    const script = renderNodeBootstrapInstaller(2_222, VALID_NODE_SECRET, SERVER_TYPES.LEASED_LINE);
+    const script = renderNodeBootstrapInstaller(
+        2_222,
+        VALID_NODE_SECRET,
+        SERVER_TYPES.LEASED_LINE,
+        fixtureDownloads(),
+    );
 
     assert.doesNotMatch(script, /ghcr\.io\/enfein\/mita|mita-run|mita-config|mita-data/);
     assert.match(script, /MIERU_STATE_DIR=\/var\/lib\/remnanode\/mieru/);
@@ -140,7 +153,8 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     let storedKey = '';
     let storedValue: unknown;
     let storedTtl = 0;
-    let consumed = false;
+    const values = new Map<string, unknown>();
+    const counts = new Map<string, number>();
     let keygenCalls = 0;
 
     const cache = {
@@ -148,12 +162,20 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
             storedKey = key;
             storedValue = value;
             storedTtl = ttl;
+            values.set(key, value);
         },
         async getDel<T>(key: string): Promise<T | null> {
-            assert.equal(key, storedKey);
-            if (consumed) return null;
-            consumed = true;
-            return storedValue as T;
+            const value = (values.get(key) as T) ?? null;
+            values.delete(key);
+            return value;
+        },
+        async get<T>(key: string) {
+            return (values.get(key) as T) ?? null;
+        },
+        async incrementWithTtl(key: string) {
+            const value = (counts.get(key) ?? 0) + 1;
+            counts.set(key, value);
+            return value;
         },
     };
     const keygen = {
@@ -163,7 +185,20 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
         },
     };
 
-    const service = new NodeBootstrapService(cache as never, keygen as never);
+    let catalogHash = fixtureDownloads().plan.catalogHash;
+    let reads = 0;
+    const artifacts = {
+        plan: async () => ({
+            ...fixtureDownloads().plan,
+            catalogHash,
+            artifacts: fixtureDownloads().plan.artifacts.filter((item) => item.role === 'node'),
+        }),
+        open: async () => {
+            reads++;
+            return { createReadStream: () => Readable.from(['fixture']) };
+        },
+    };
+    const service = new NodeBootstrapService(cache as never, keygen as never, artifacts as never);
     const created = await service.create(2_222, SERVER_TYPES.LEASED_LINE, {
         configuredDomain: 'panel.example.com',
         forwardedHost: undefined,
@@ -173,7 +208,7 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     assert.equal(created.isOk, true);
     if (!created.isOk) return;
 
-    const tokenMatch = created.response.installCommand.match(/--data-raw '(\{[^']+\})'/);
+    const tokenMatch = created.response.installCommand.match(/(\{"token":"[A-Za-z0-9_-]+"\})/);
     assert.ok(tokenMatch);
     const { token } = JSON.parse(tokenMatch[1]) as { token: string };
 
@@ -184,6 +219,8 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     assert.deepEqual(storedValue, {
         nodePort: 2_222,
         serverType: SERVER_TYPES.LEASED_LINE,
+        panelOrigin: 'https://panel.example.com',
+        catalogHash,
     });
     assert.equal(storedTtl, NODE_BOOTSTRAP_TTL_SECONDS);
 
@@ -192,6 +229,25 @@ test('bootstrap token is hashed at rest and can be redeemed only once', async ()
     if (first.isOk) {
         assert.match(first.response, new RegExp(`SECRET_KEY=${VALID_NODE_SECRET}`));
         assert.match(first.response, /MIERU_STATE_DIR/);
+        const artifactToken = first.response.match(/"token":"([A-Za-z0-9_-]{43})"/)![1];
+        assert.notEqual(artifactToken, token);
+        assert.equal(storedKey, artifactCacheKey(artifactToken));
+        assert.equal(storedTtl, ARTIFACT_TTL_SECONDS);
+        assert(!JSON.stringify(storedValue).includes(artifactToken));
+        await assert.rejects(service.downloadArtifact(token, 'node-amd64.tar.gz'));
+        await assert.rejects(service.downloadArtifact(artifactToken, 'haproxy-amd64.tar.gz'));
+        await assert.rejects(service.downloadArtifact(artifactToken, '../secret'));
+        assert.equal(reads, 0);
+        for (let attempt = 0; attempt < 8; attempt++) {
+            const download = await service.downloadArtifact(artifactToken, 'node-amd64.tar.gz');
+            download.stream.destroy();
+        }
+        await assert.rejects(service.downloadArtifact(artifactToken, 'node-amd64.tar.gz'));
+        assert.equal(reads, 8);
+        catalogHash = 'e'.repeat(64);
+        await assert.rejects(service.downloadArtifact(artifactToken, 'node-arm64.tar.gz'));
+        values.delete(artifactCacheKey(artifactToken));
+        await assert.rejects(service.downloadArtifact(artifactToken, 'node-arm64.tar.gz'));
     }
 
     const second = await service.redeem(token);

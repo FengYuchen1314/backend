@@ -12,6 +12,7 @@ import { NodeEdgeSettingsController } from './edge/node-edge-settings.controller
 import { NodeEdgeSettingsRepository } from './edge/node-edge-settings.repository';
 import { NodeEdgeSettingsService } from './edge/node-edge-settings.service';
 import { EVENTS } from './events';
+import { NodeBootstrapArtifactsService } from './node-bootstrap-artifacts';
 import { NodeBootstrapController } from './node-bootstrap.controller';
 import { NodeBootstrapService } from './node-bootstrap.service';
 import { NodesSystemCacheService } from './nodes-system-cache.service';
@@ -32,6 +33,7 @@ import { NodesRepository } from './repositories/nodes.repository';
         NodesService,
         NodesSystemCacheService,
         NodeBootstrapService,
+        NodeBootstrapArtifactsService,
         CamouflageDomainCacheService,
         CamouflageDomainService,
         ...EVENTS,
