@@ -32,7 +32,7 @@
     "format:fix": "oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "test:edge-settings": "tsx --test src/modules/nodes/edge/node-edge-settings.test.ts src/modules/nodes/edge/node-edge-settings.postgres.test.ts",
+    "test:edge-settings": "tsx --test src/modules/nodes/edge/node-edge-settings.test.ts src/modules/nodes/edge/node-edge-settings.postgres.test.ts src/modules/nodes/nodes-mutation.postgres.test.ts",
     "test:topology": "tsx --test src/modules/subscription-template/generators/topology-subscription.test.ts",
     "test:anytls": "tsx --test src/modules/anytls/anytls-identity.test.ts src/common/helpers/xray-config/managed-xray-profile.test.ts src/common/axios/anytls-capabilities.test.ts src/modules/users/queries/get-prepared-config-with-users/get-prepared-config-with-users.test.ts src/queue/_nodes/coordinated-start.test.ts src/modules/subscription-template/generators/anytls-subscription.test.ts src/modules/anytls/anytls-usage.test.ts",
     "test:anytls-db": "tsx --test src/modules/anytls/anytls-material.postgres.test.ts src/modules/anytls/anytls-usage.postgres.test.ts",
@@ -40,7 +40,7 @@
     "test:seed": "tsx --test prisma/seed/seeders/4_seed-subscription-template.test.ts prisma/seed/seeders/6_sync-inbounds.test.ts",
     "test:seed-db": "tsx --test prisma/seed/seeders/6_sync-inbounds.postgres.test.ts",
     "build:topology-test": "NODE_ENV=production rspack build --config scripts/topology-test.rspack.mjs",
-    "test": "node --test scripts/mihomo-test-readiness.test.mjs && tsx --test src/common/config/app-config/paired-image-config.test.ts src/modules/nodes/node-bootstrap.test.ts src/modules/nodes/node-bootstrap-artifacts.test.ts src/modules/nodes/node-bootstrap-installer.linux.test.ts src/common/helpers/mieru-config/mieru-config.test.ts src/common/helpers/xray-config/xray-config.validator.test.ts src/modules/nodes/events/socks-user-sync.test.ts src/modules/nodes/managed-node-creation-policy.test.ts src/modules/nodes/camouflage-domain/camouflage-domain.test.ts src/modules/nodes/edge/node-edge-plan.test.ts src/modules/subscription-template/generators/mieru-subscription.test.ts src/modules/subscription-template/generators/socks-subscription.test.ts src/modules/topologies/topology.test.ts src/modules/users/queries/get-prepared-mita-config-with-users/get-prepared-mita-config-with-users.test.ts src/queue/_nodes/start-node-retry.test.ts",
+    "test": "node --test scripts/mihomo-test-readiness.test.mjs && tsx --test src/common/config/app-config/paired-image-config.test.ts src/modules/nodes/node-bootstrap.test.ts src/modules/nodes/node-bootstrap-artifacts.test.ts src/modules/nodes/node-bootstrap-installer.linux.test.ts src/common/helpers/mieru-config/mieru-config.test.ts src/common/helpers/xray-config/xray-config.validator.test.ts src/modules/nodes/events/socks-user-sync.test.ts src/modules/nodes/managed-node-creation-policy.test.ts src/modules/nodes/nodes-mutation.test.ts src/modules/nodes/camouflage-domain/camouflage-domain.test.ts src/modules/nodes/edge/node-edge-plan.test.ts src/modules/subscription-template/generators/mieru-subscription.test.ts src/modules/subscription-template/generators/socks-subscription.test.ts src/modules/topologies/topology.test.ts src/modules/users/queries/get-prepared-mita-config-with-users/get-prepared-mita-config-with-users.test.ts src/queue/_nodes/start-node-retry.test.ts src/queue/_nodes/stop-node.test.ts",
     "check": "oxfmt --check && oxlint",
     "fix": "oxfmt && oxlint --fix"
   },

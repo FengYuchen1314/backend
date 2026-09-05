@@ -309,39 +309,35 @@ export class NodesService {
                     new GetConfigProfileByUuidQuery(configProfile.activeConfigProfileUuid),
                 );
 
-                if (configProfileResponse.isOk) {
-                    const inbounds = configProfileResponse.response.inbounds;
+                if (!configProfileResponse.isOk) {
+                    return configProfileResponse;
+                }
 
-                    const areAllInboundsFromConfigProfile = configProfile.activeInbounds.every(
-                        (activeInboundUuid) =>
-                            inbounds.some((inbound) => inbound.uuid === activeInboundUuid),
-                    );
+                const inbounds = configProfileResponse.response.inbounds;
+                const areAllInboundsFromConfigProfile = configProfile.activeInbounds.every(
+                    (activeInboundUuid) =>
+                        inbounds.some((inbound) => inbound.uuid === activeInboundUuid),
+                );
 
-                    if (areAllInboundsFromConfigProfile) {
-                        await this.nodesRepository.removeInboundsFromNode(node.uuid);
-
-                        await this.nodesRepository.addInboundsToNode(
-                            node.uuid,
-                            configProfile.activeInbounds,
-                        );
-                    } else {
-                        return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
-                    }
+                if (!areAllInboundsFromConfigProfile) {
+                    return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
                 }
             }
 
-            const result = await this.nodesRepository.update({
-                ...nodeData,
-                address: nodeData.address ? nodeData.address.trim() : undefined,
-                trafficLimitBytes: wrapBigInt(nodeData.trafficLimitBytes),
-                consumptionMultiplier: mapDefined(nodeData.consumptionMultiplier, toNano),
-                nodeConsumptionMultiplier: mapDefined(nodeData.nodeConsumptionMultiplier, toNano),
-                activeConfigProfileUuid: configProfile?.activeConfigProfileUuid,
-            });
-
-            if (!result) {
-                return fail(ERRORS.UPDATE_NODE_ERROR);
-            }
+            const result = await this.updateNodeWithInbounds(
+                {
+                    ...nodeData,
+                    address: nodeData.address ? nodeData.address.trim() : undefined,
+                    trafficLimitBytes: wrapBigInt(nodeData.trafficLimitBytes),
+                    consumptionMultiplier: mapDefined(nodeData.consumptionMultiplier, toNano),
+                    nodeConsumptionMultiplier: mapDefined(
+                        nodeData.nodeConsumptionMultiplier,
+                        toNano,
+                    ),
+                    activeConfigProfileUuid: configProfile?.activeConfigProfileUuid,
+                },
+                configProfile?.activeInbounds,
+            );
 
             if (!node.isDisabled) {
                 await this.nodesQueuesService.startNode({
@@ -379,6 +375,26 @@ export class NodesService {
             this.logger.error(error);
             return fail(ERRORS.UPDATE_NODE_ERROR);
         }
+    }
+
+    @Transactional()
+    private async updateNodeWithInbounds(
+        nodeData: Partial<NodesEntity>,
+        activeInbounds?: string[],
+    ): Promise<NodesEntity> {
+        // Updating the node first locks its row, serializing concurrent profile replacements.
+        // Prisma and Kysely both use the same CLS transaction. Let every error escape this
+        // method so a failed field update or link insert rolls back the complete mutation.
+        const node = await this.nodesRepository.update(nodeData);
+        if (!node) throw new Error('Node update did not return a persisted node.');
+        if (activeInbounds === undefined) return node;
+
+        await this.nodesRepository.removeInboundsFromNode(node.uuid);
+        await this.nodesRepository.addInboundsToNode(node.uuid, activeInbounds);
+
+        const result = await this.nodesRepository.findByUUID(node.uuid);
+        if (!result) throw new Error('Updated node was not found.');
+        return result;
     }
 
     public async enableNode(uuid: string): Promise<TResult<NodeResponseModel>> {
@@ -554,13 +570,7 @@ export class NodesService {
                 return fail(ERRORS.CONFIG_PROFILE_INBOUND_NOT_FOUND_IN_SPECIFIED_PROFILE);
             }
 
-            await this.nodesRepository.updateMany(uuids, {
-                activeConfigProfileUuid: configProfile.activeConfigProfileUuid,
-            });
-
-            await this.nodesRepository.removeInboundsFromNodes(uuids);
-
-            await this.nodesRepository.addInboundsToNodes(uuids, configProfile.activeInbounds);
+            await this.updateNodesProfileWithInbounds(uuids, configProfile);
 
             await this.nodesQueuesService.startAllNodesByProfile({
                 profileUuid: configProfile.activeConfigProfileUuid,
@@ -572,6 +582,18 @@ export class NodesService {
             this.logger.error(error);
             return fail(ERRORS.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @Transactional()
+    private async updateNodesProfileWithInbounds(
+        uuids: string[],
+        configProfile: ProfileModificationBodyDto['configProfile'],
+    ): Promise<void> {
+        await this.nodesRepository.updateMany(uuids, {
+            activeConfigProfileUuid: configProfile.activeConfigProfileUuid,
+        });
+        await this.nodesRepository.removeInboundsFromNodes(uuids);
+        await this.nodesRepository.addInboundsToNodes(uuids, configProfile.activeInbounds);
     }
 
     public async bulkNodesActions(body: BulkNodesActionsBodyDto): Promise<TResult<boolean>> {

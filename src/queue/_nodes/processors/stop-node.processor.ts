@@ -50,23 +50,38 @@ export class StopNodeProcessor extends WorkerHost {
                 port: result.response.port,
                 proxyUrl: result.response.proxyUrl,
             };
-            const isMieruRuntime =
-                result.response.serverType === SERVER_TYPES.LEASED_LINE ||
-                (result.response.activeInbounds.length > 0 &&
-                    result.response.activeInbounds.every(
-                        (inbound) => inbound.type.toLowerCase() === 'mieru',
-                    ));
-
-            const stopped = isMieruRuntime
-                ? await this.axios.stopMieru(connection)
-                : await this.axios.stopXray(connection);
-            if (!stopped.isOk || !stopped.response.isStopped) {
+            const activeInbounds = result.response.activeInbounds;
+            const noActiveInbounds = activeInbounds.length === 0;
+            // Imports may use a runtime outside the managed creation whitelist. Follow the
+            // actual protocols, using the server category only after a profile was removed.
+            const stopMieru =
+                activeInbounds.some((inbound) => inbound.type.toLowerCase() === 'mieru') ||
+                (noActiveInbounds && result.response.serverType === SERVER_TYPES.LEASED_LINE);
+            const stopXray =
+                activeInbounds.some((inbound) => inbound.type.toLowerCase() !== 'mieru') ||
+                (noActiveInbounds && result.response.serverType !== SERVER_TYPES.LEASED_LINE);
+            // A rejected mixed selection may still have an earlier live runtime. Attempt both
+            // stops independently, and never report success unless every requested stop confirms.
+            const stops = await Promise.allSettled([
+                ...(stopMieru ? [this.axios.stopMieru(connection)] : []),
+                ...(stopXray ? [this.axios.stopXray(connection)] : []),
+            ]);
+            const contactFailed = stops.some(
+                (stopped) => stopped.status === 'rejected' || !stopped.value.isOk,
+            );
+            const stopFailed = stops.some(
+                (stopped) =>
+                    stopped.status === 'rejected' ||
+                    !stopped.value.isOk ||
+                    !stopped.value.response.isStopped,
+            );
+            if (stopFailed) {
                 await this.commandBus.execute(
                     new UpdateNodeCommand({
                         uuid: result.response.uuid,
-                        lastStatusMessage: stopped.isOk
-                            ? 'The node runtime did not confirm that it stopped.'
-                            : 'Failed to contact the node to stop its runtime.',
+                        lastStatusMessage: contactFailed
+                            ? 'Failed to contact the node to stop its runtime.'
+                            : 'The node runtime did not confirm that it stopped.',
                         lastStatusChange: new Date(),
                     }),
                 );
