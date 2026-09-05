@@ -1,3 +1,4 @@
+import { load } from 'js-yaml';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
@@ -147,6 +148,45 @@ test('leased-line installer uses embedded isolated Mieru with persistent instanc
     );
     assert.match(script, /remnanode-state:\/var\/lib\/remnanode/);
     assert.doesNotMatch(script, /EDGE_ENABLED|haproxy-master|xboard-edge-caddy/);
+});
+
+test('only public-direct bootstrap enables joint AnyTLS with durable state and unchanged edge mounts', () => {
+    for (const serverType of Object.values(SERVER_TYPES)) {
+        const script = renderNodeBootstrapInstaller(
+            2_222,
+            VALID_NODE_SECRET,
+            serverType,
+            fixtureDownloads(),
+        );
+        const yaml = script.match(/<<'REMNAWAVE_NODE_COMPOSE'\n([\s\S]*?)\nREMNAWAVE_NODE_COMPOSE/);
+        assert(yaml);
+        const compose = load(yaml[1]) as {
+            services: Record<string, { volumes?: string[]; pull_policy: string }>;
+            volumes?: Record<string, unknown>;
+        };
+        if (serverType === SERVER_TYPES.PUBLIC_DIRECT) {
+            assert.match(script, /\nANYTLS_ENABLED=true\n/);
+            assert.match(script, /\nANYTLS_STATE_DIR=\/var\/lib\/remnanode\/anytls\n/);
+            assert.deepEqual(compose.services.remnanode.volumes, [
+                'remnanode-state:/var/lib/remnanode',
+                './edge:/var/lib/remnanode/edge',
+                'edge-run:/var/run/xboard-edge',
+            ]);
+            assert(Object.hasOwn(compose.volumes!, 'remnanode-state'));
+            for (const sidecar of ['haproxy', 'caddy']) {
+                assert(
+                    !compose.services[sidecar].volumes?.some((value) =>
+                        value.startsWith('remnanode-state:'),
+                    ),
+                );
+            }
+        } else {
+            assert.doesNotMatch(script, /ANYTLS_ENABLED|ANYTLS_STATE_DIR/);
+        }
+        for (const service of Object.values(compose.services)) {
+            assert.equal(service.pull_policy, 'never');
+        }
+    }
 });
 
 test('bootstrap token is hashed at rest and can be redeemed only once', async () => {

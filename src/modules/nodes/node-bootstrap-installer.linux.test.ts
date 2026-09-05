@@ -142,10 +142,16 @@ esac
                     if (success) {
                         assert.equal(requests.length, 3);
                         assert.equal((actions.match(/image load/g) ?? []).length, 3);
+                        const environmentFile = await readFile(join(install, '.env'), 'utf8');
+                        assert.match(environmentFile, /SECRET_KEY=YWJj/);
+                        assert.match(environmentFile, /\nANYTLS_ENABLED=true\n/);
                         assert.match(
-                            await readFile(join(install, '.env'), 'utf8'),
-                            /SECRET_KEY=YWJj/,
+                            environmentFile,
+                            /\nANYTLS_STATE_DIR=\/var\/lib\/remnanode\/anytls\n/,
                         );
+                        const composeFile = await readFile(join(install, 'compose.yml'), 'utf8');
+                        assert.match(composeFile, /remnanode-state:\/var\/lib\/remnanode/);
+                        assert.match(composeFile, /\nvolumes:\n  remnanode-state:/);
                     } else {
                         if (scenario !== 'wrong-image') assert.doesNotMatch(actions, /image load/);
                         if (scenario === 'existing')

@@ -130,3 +130,19 @@ browser, UDP, public website/ACME, or power-loss acceptance. Earlier attempts
 exposed orchestration mistakes (DNS namespace, numeric user identity, required
 restart body and empty accepted response); only the final successful run above
 is the complete end-to-end checkpoint.
+
+## Installer follow-up (not yet deployed)
+
+The public-direct installer now explicitly sets `ANYTLS_ENABLED=true` and
+`ANYTLS_STATE_DIR=/var/lib/remnanode/anytls` and mounts the named
+`remnanode-state` volume at `/var/lib/remnanode`. Its existing, more-specific
+edge-directory mount and HAProxy socket volume are unchanged. Neither sidecar
+receives the private AnyTLS state volume. Leased-line and residential installers
+do not enable AnyTLS; panel-only, checksum-verified downloads and `pull_policy:
+never` remain in place.
+
+Local installer/unit/type checks passed (the two Linux-only shell suites are
+skipped on Windows). Actions compilation/Linux execution and a real panel-only
+installer run with this change still need acceptance. This does not upgrade
+existing Agents, enable the managed-creation UI, or establish volume persistence
+under an actual installer-created container replacement.

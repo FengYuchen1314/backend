@@ -93,7 +93,7 @@ export function renderNodeBootstrapInstaller(
         ? '\nMIERU_ENABLED=true\nMIERU_METRICS_BASELINE_PATH=/var/lib/remnanode/mieru-metrics-baselines.json\nMIERU_STATE_DIR=/var/lib/remnanode/mieru\nMIERU_SOCKET_DIR=/var/run/rw-mita'
         : '';
     const edgeEnvironment = usesEdge
-        ? '\nEDGE_ENABLED=true\nEDGE_CONFIG_DIR=/var/lib/remnanode/edge\nEDGE_HAPROXY_MASTER_SOCKET=/var/run/xboard-edge/haproxy-master.sock\nEDGE_CADDY_ADMIN_URL=http://127.0.0.1:2019'
+        ? '\nEDGE_ENABLED=true\nEDGE_CONFIG_DIR=/var/lib/remnanode/edge\nEDGE_HAPROXY_MASTER_SOCKET=/var/run/xboard-edge/haproxy-master.sock\nEDGE_CADDY_ADMIN_URL=http://127.0.0.1:2019\nANYTLS_ENABLED=true\nANYTLS_STATE_DIR=/var/lib/remnanode/anytls'
         : '';
     const remnanodeMitaConfig = usesMita
         ? `
@@ -103,6 +103,7 @@ export function renderNodeBootstrapInstaller(
     const remnanodeEdgeConfig = usesEdge
         ? `
     volumes:
+      - remnanode-state:/var/lib/remnanode
       - ./edge:/var/lib/remnanode/edge
       - edge-run:/var/run/xboard-edge
     depends_on:
@@ -169,6 +170,7 @@ volumes:
         ? `
 
 volumes:
+  remnanode-state:
   edge-run:
   caddy-data:
   caddy-config:`
