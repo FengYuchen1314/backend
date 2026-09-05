@@ -137,7 +137,12 @@ if (phase === 'resolve-camouflage') {
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
         assert(res.ok, `Panel ${method} ${path.split('/')[1]} failed (${res.status})`);
-        return (await res.json()).response;
+        const responseText = await res.text();
+        if (res.status === 202 || res.status === 204) {
+            assert.equal(responseText, '', 'Accepted/no-content action must not return a body');
+            return;
+        }
+        return JSON.parse(responseText).response;
     };
     const waitFor = async (label, action, timeout = 90000) => {
         const deadline = Date.now() + timeout;
@@ -274,12 +279,17 @@ if (phase === 'resolve-camouflage') {
     } else if (phase === 'verify' || phase === 'reconcile') {
         const fixture = JSON.parse(await read('fixture.json'));
         if (phase === 'reconcile') {
+            const requestedAt = Date.now();
             await api(`/nodes/${fixture.nodeUuid}/actions/restart`, 'POST', {
                 forceRestart: true,
             });
             await waitFor('Agent restart reconciliation', async () => {
                 const node = await api(`/nodes/${fixture.nodeUuid}`);
-                return node.isConnected && !node.isConnecting;
+                return (
+                    node.isConnected &&
+                    !node.isConnecting &&
+                    Date.parse(node.lastStatusChange) >= requestedAt
+                );
             });
             process.stdout.write(
                 'PASS: real panel requested complete Agent reconciliation after restart\n',
