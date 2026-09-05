@@ -146,7 +146,44 @@ skipped on Windows). Backend commit `2b2cebc4d86441405710cb39705c61bbbc7b55c4`
 passed CI 33963996525, including actual Linux Bash/curl execution, and paired image
 33963996595 with frontend `a0c76738`. Image digest:
 `ghcr.io/fengyuchen1314/backend@sha256:4d9eca064de3d5f0389bcd34d135b912d0592d28a30b22a48bb75be7b05fff5a`.
-The real panel-only installer/container-replacement test is in progress separately.
-This does not upgrade
-existing Agents, enable the managed-creation UI, or establish volume persistence
-under an actual installer-created container replacement.
+The real panel-only installer/container-replacement checkpoint is recorded below.
+This does not upgrade existing Agents or enable the managed-creation UI in this
+particular image.
+
+## Accepted original installer and replacement — 2026-09-05
+
+`scripts/vps-anytls-bootstrap-e2e.sh` and its plain-JavaScript helpers at
+`970a6770` ran with the exact `2b2cebc4`/`a0c76738` image above on 185.99.135.224
+in `/opt/xboard-anytls-bootstrap.hYaK43TG` (`acceptance.log`, exit 0).
+
+- A fresh real panel issued its **original install command**, which was executed
+  without changing the installer/Compose/environment. A private nested Docker
+  engine started with no images or containers and only an internal panel network;
+  the registry was unreachable. The trusted loopback TLS relay used a private
+  test CA, with certificate verification enabled. Docker/bash/curl were fixture
+  prerequisites, provisioned before the Agent installation and egress cutoff.
+- The installer obtained and verified all three runtime images from the panel,
+  created the original Agent/HAProxy/Caddy services, enabled the coordinated
+  AnyTLS runtime, and attached its named private state volume. Only after proving
+  panel-only installation was outbound access enabled for public camouflage and
+  native test traffic.
+- The unchanged real-panel subscription carried encrypted native Mihomo TCP.
+  Scheduled billing recorded 957 raw bytes as 478 charged bytes at multiplier 0.5;
+  node multiplier 2, raw history, lifetime traffic and cursor were also checked.
+- Compose **force-recreated** the Agent without rebuilding or pulling anything.
+  The container ID changed and the same named state volume remained attached.
+  Panel reconciliation completed with a fresh status timestamp; the exact same
+  epoch, counters and billing totals survived repeated polling.
+- The original subscription then carried another native request through the
+  replacement Agent. Natural polling reached 1,914 raw and 957 charged bytes,
+  including the carried fractional byte. Repeated polling remained unchanged.
+- All six labelled outer containers, their internal network and the owned nested
+  image/state volume were removed. The original 16 container IDs and PDF HTTP 200
+  were unchanged. Private logs/source evidence remain in the test directory.
+
+The nested daemon needed container privileges but had **no host Docker socket,
+host networking/PID, host port bindings or existing user-data mounts**. Compose's
+host network was the private engine namespace, not the VPS host. No application
+or native compilation occurred on the VPS. This checkpoint used external-import
+creation; managed creation with the new whitelist/UI, browser workflow, UDP and
+public ACME still require their own acceptance.

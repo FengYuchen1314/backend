@@ -37,8 +37,9 @@ constraints and live DNS/TLS/Cloudflare checks remain backend/Agent gates.
   its 8 local creation-policy tests, lint and type checking. Tests reject reserved
   or colliding ports, mismatched tags, private identity/user fields, non-TLS
   metadata, known Cloudflare CDN names/IPs and non-public server types.
-- Backend CI 33964860742 and paired image 33964860911 are still pending at this
-  source checkpoint. The latter explicitly uses frontend `1addfa95`.
+- Backend [CI 33964860742](https://github.com/FengYuchen1314/backend/actions/runs/33964860742)
+  passed all checks and compilation. Paired image 33964860911 is still pending at
+  this source checkpoint and explicitly uses frontend `1addfa95`.
 
 This source checkpoint is not deployed/browser/managed native-client acceptance.
 The independent installer checkpoint uses backend `2b2cebc4` and the older accepted
