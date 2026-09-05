@@ -21,9 +21,8 @@ Publishing an image is not deployment or browser acceptance. Database migrations
 panel/API/browser tests must still run before claiming the paired application works. Existing
 PDF and proxy services on the shared test VPS must be preserved.
 
-The desired frontend for the next explicit WIP acceptance build is
-`d6bc1fa1c442572de287d6812241a1218059140e` (`wip/shared-443-ui`). AnyTLS managed creation remains
-disabled and is not made functional by this pipeline change.
+The latest accepted source pair and its limited acceptance scope are recorded below. AnyTLS
+managed creation remains disabled and is not made functional by this pipeline change.
 
 ## First complete-image finding
 
@@ -109,3 +108,33 @@ The paired frontend separately corrects the generated Mieru listener default fro
 443 to 24443; both the existing browser validator and backend contract require ports 1025–65535.
 The preset regression now checks that range. These source fixes still require the new Actions
 pair and actual VPS cold-start acceptance; the earlier 22e2/d6bc image run was deliberately cancelled.
+
+## Corrected startup pair: upgrade, recovery and fresh restart
+
+Backend `8f51bd6da25811ff323067c71d01b6f865fb93ab` and frontend
+`260b6c407d4f3311ad4e6dff39e1b79f523acdda` passed
+[paired image build 33938525002](https://github.com/FengYuchen1314/backend/actions/runs/33938525002).
+The deployed digest is `sha256:36dc9ef42e6a5925ca3742ca52e16e7b9d57e5964c4ac11a3b28bfd306087d5f`.
+Image metadata was checked against both full source SHAs and the native `dev` runtime channel
+before replacing only the owned test-panel containers. No bootstrap override was used.
+
+On 2026-09-05 the VPS acceptance passed:
+
+- Upgrade of `/opt/xboard-panel-test.oKbMNrzT` retained both saved graphs, one draft and one
+  published, with exact equality of graphs, positions, versions, names, timestamps and flags.
+  Browser reload and selection restored the five-edge, two-physical-server balance graph.
+- Upgrade of `/opt/xboard-panel-test.dLSYqnfI` recovered the panel that previously exited during
+  Mieru startup. Its saved Mieru profile, listener/inbound UUID, port, timestamps and leased-line
+  node association were unchanged. The topology already deleted during the earlier RED test
+  was not restored by the fix and is not claimed as recovered.
+- A fresh private fixture `/opt/xboard-panel-test.fISUOzy0` passed native migrations/seeding,
+  bootstrap, frontend assets, authentication and feature API tests. After creating a Mieru
+  profile and leased-line node, a real panel-container restart preserved the complete topology
+  and Mieru profile records exactly.
+- Invalid edge server type and upstream self-loop still return HTTP 400/XE002 without changing
+  saved settings or revision.
+
+All three fixtures use internal Docker networks and private databases with no host/public ports.
+The existing PDF service still returned HTTP 200 and both PDF containers remained healthy.
+These results cover startup/data retention and offline metadata APIs, not Agent deployment,
+actual proxy traffic, public HTTPS/ACME, automatic updates or production readiness.
