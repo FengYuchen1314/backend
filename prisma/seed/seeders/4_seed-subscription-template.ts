@@ -13,6 +13,7 @@ import {
     DEFAULT_TEMPLATE_STASH,
     DEFAULT_TEMPLATE_XRAY_JSON,
 } from '@modules/subscription-template/constants';
+import { INTERNAL_TOPOLOGY_TEMPLATE_TYPE } from '@modules/topologies/topology.constants';
 
 export async function seedSubscriptionTemplate(prisma: PrismaClient) {
     consola.start('Seeding subscription templates...');
@@ -20,7 +21,8 @@ export async function seedSubscriptionTemplate(prisma: PrismaClient) {
     const deletedTemplates = await prisma.subscriptionTemplate.deleteMany({
         where: {
             templateType: {
-                notIn: [...SUBSCRIPTION_TEMPLATE_TYPE_VALUES],
+                // Internal graphs share this table but are not public subscription formats.
+                notIn: [...SUBSCRIPTION_TEMPLATE_TYPE_VALUES, INTERNAL_TOPOLOGY_TEMPLATE_TYPE],
             },
         },
     });

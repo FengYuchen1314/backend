@@ -22,7 +22,7 @@ panel/API/browser tests must still run before claiming the paired application wo
 PDF and proxy services on the shared test VPS must be preserved.
 
 The desired frontend for the next explicit WIP acceptance build is
-`5df763b7e151d8a9247f2bed3d862621fc360016` (`wip/shared-443-ui`). AnyTLS managed creation remains
+`d6bc1fa1c442572de287d6812241a1218059140e` (`wip/shared-443-ui`). AnyTLS managed creation remains
 disabled and is not made functional by this pipeline change.
 
 ## First complete-image finding
@@ -66,5 +66,30 @@ the upstream generic config error `A061`, whose HTTP status is 500. Wrong server
 upstream loops must be client errors. The correction introduces the edge-specific `XE002`/400
 without changing the upstream generic error globally. A regression exercises the actual service
 and controller error handler, failed before the correction, and confirms no persistence occurs.
-The corrected error mapping still needs Actions/VPS image revalidation; the earlier image is
-not a full feature-acceptance pass. Browser acceptance is recorded separately when performed.
+Backend `3bdbee41463cafc10396e53c37cde7aed6fe6680` passed this error regression in the VPS
+image paired with frontend `c639ce75b8152fb30f784738ed7fbcf62c6f6c6c`, digest
+`sha256:9ff79bc5c47f0546e2d90242653a1ca07ca2327c3ae0333008741e95308e3544`.
+Both rejected requests returned 400/XE002 and left saved settings and revisions unchanged.
+
+## Restart data-loss finding — do not deploy the earlier images
+
+The next pair, backend `3bdbee41463cafc10396e53c37cde7aed6fe6680` and frontend
+`d6bc1fa1c442572de287d6812241a1218059140e`, built in
+[Actions 33936591273](https://github.com/FengYuchen1314/backend/actions/runs/33936591273), digest
+`sha256:2e0c90900cba2ab4b610f554bd70d830da891f9ce1997a435b6a8b448c54c870`.
+A fresh private VPS fixture `/opt/xboard-panel-test.dLSYqnfI` passed bootstrap, auth/asset reads,
+managed server policy, edge persistence/conflict and topology save/version/reference tests.
+
+However, browser restore in the upgraded `/opt/xboard-panel-test.oKbMNrzT` fixture found the
+previously API-verified graphs absent, while nodes and edge settings remained intact. The startup
+subscription-template seeder deletes types outside the public-format list. Graph storage uses
+`XBOARD_TOPOLOGY` in that same table and was accidentally included in this cleanup. Passing
+create/read tests without a real application restart did not cover this data-loss path.
+
+The correction preserves the existing internal type in the seeder's cleanup allowlist, without
+adding it to public formats or creating a default graph. An actual-seeder unit regression failed
+before the correction. PostgreSQL coverage calls the seeder twice with draft and published graphs,
+checking complete row equality, publication state, versions and timestamps inside a rolled-back
+test transaction. Both CI and image publication now run the seed regression. A corrected Actions
+image still must pass restart/upgrade preservation on the VPS before acceptance is complete.
+Only disposable acceptance records were affected; this is not evidence of damage to production data.

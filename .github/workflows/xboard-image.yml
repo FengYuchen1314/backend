@@ -83,7 +83,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm test && npm run test:topology
+        run: npm test && npm run test:topology && npm run test:seed
 
       - name: Test generated topology subscriptions with real clients
         run: bash scripts/test-topology-clients.sh
