@@ -127,7 +127,6 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Log in to GHCR
-        if: github.ref == 'refs/heads/xboard-dev'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679fd # v4
         with:
           registry: ghcr.io
@@ -183,15 +182,17 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.ref == 'refs/heads/xboard-dev' }}
+          # Publish immutable source-pair tags for VPS/browser acceptance. Only xboard-dev
+          # receives the mutable deployment tag, generated explicitly by the metadata step.
+          push: true
           tags: ${{ steps.metadata.outputs.image_tags }}
           build-args: |
-            BRANCH=xboard-dev
+            BRANCH=${{ github.ref_name }}
             SOURCE_REPOSITORY=https://github.com/FengYuchen1314/backend
             FRONTEND_SOURCE=local
             FRONTEND_COMMIT=${{ steps.metadata.outputs.frontend_commit }}
             __RW_METADATA_VERSION=${{ steps.metadata.outputs.version }}
-            __RW_METADATA_GIT_BRANCH=xboard-dev
+            __RW_METADATA_GIT_BRANCH=${{ github.ref_name }}
             __RW_METADATA_BUILD_TIME=${{ steps.metadata.outputs.build_time }}
             __RW_METADATA_BUILD_NUMBER=${{ github.run_number }}
             __RW_METADATA_GIT_BACKEND_COMMIT=${{ github.sha }}
