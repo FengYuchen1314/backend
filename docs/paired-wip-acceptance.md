@@ -138,3 +138,13 @@ All three fixtures use internal Docker networks and private databases with no ho
 The existing PDF service still returned HTTP 200 and both PDF containers remained healthy.
 These results cover startup/data retention and offline metadata APIs, not Agent deployment,
 actual proxy traffic, public HTTPS/ACME, automatic updates or production readiness.
+
+The follow-up label-refresh pair uses backend `620da70fd2ae4ea7ee3a0c20c7b6bf6780c6215e` and
+frontend `65da671701a092e0bea20135064cce19d5960b3b`, from successful
+[Actions 33939882005](https://github.com/FengYuchen1314/backend/actions/runs/33939882005), digest
+`sha256:5c008e08d8bab5d627c71df38caae947976681a2fdf0913bc5676c9d1f84ff5f`.
+It upgraded only the owned browser fixture, with exact metadata checks and no bootstrap bypass.
+Both saved graphs and the browser-created Mieru profile again survived with full record equality;
+the 400/XE002 no-persistence checks passed. Actual browser conflict reload now refreshes both
+the selected label and detail name, while cancellation still preserves the draft. Full feature
+completion and the remaining acceptance gates above are not implied by these regression passes.
