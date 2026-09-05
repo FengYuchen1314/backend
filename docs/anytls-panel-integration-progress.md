@@ -51,3 +51,38 @@ ACME issuance, billing delivery, or certificate rollout to all physical replicas
 Daily renewal queues expiring profiles 30 days before leaf expiry. Ordinary Node
 health/retry handling applies to failed starts; per-replica certificate deployment
 acknowledgements and crash-proof usage acknowledgements remain follow-up work.
+
+## Accepted checkpoint
+
+Functional commit: `60cb162d7375264ec2cf38e22fdfd007f3d9610f`.
+
+- [CI 33956872526](https://github.com/FengYuchen1314/backend/actions/runs/33956872526)
+  passed, including application/dependency wiring, the new PostgreSQL migration and
+  CAS test, existing native Mihomo/sing-box topology checks, and the compiled test bundle.
+- [Paired image 33956974921](https://github.com/FengYuchen1314/backend/actions/runs/33956974921)
+  passed for amd64/arm64 with frontend `db3fc697571735f5dc38ac1044d9c96ad676566c`.
+  The automatic build defaulted to the older `xboard-dev` frontend; the explicit
+  paired build replaced it. Verified immutable image:
+  `ghcr.io/fengyuchen1314/backend@sha256:429d75ac4838702ff9fe9e00b659b97fe7fb4ace331561dc01cfb9f2ab9037d1`.
+- On **185.99.135.224**, `/opt/xboard-anytls-panel-test.FFtScMz7` retains the verified
+  artifact and logs. **30/30**, zero skips, passed first with the prior production
+  dependency runtime and again with the new image. Full new-image migrations and
+  the compiled PostgreSQL CAS/FK/metadata-isolation test then passed (**1/1**).
+- Artifact `9966669846`, GitHub ZIP SHA-256
+  `97dc815c2e68445c5b12d3b622aefe25f970628b7fea84438ae96bc797fabb10`;
+  inner tar SHA-256
+  `96239cac0171206d358c2ccc4a5c0995a2aacbc4f28c3a3f9cfdd5fedbd56249`.
+
+The first database helper mistakenly treated PostgreSQL's temporary initialization
+Unix socket as final readiness, then saw connection rejection during its restart.
+That attempt did not pass. The corrected helper waits on `127.0.0.1` TCP; accepted
+logs are `preparation-new-image.log` and `database-tests-tcp-ready.log`.
+The exact VPS helper SHA-256 was
+`a0ed66e1a687b5add98d83977cf6644ed7b3c530384ac2e8c2c7b3094050febc`.
+`scripts/vps-anytls-panel-db-smoke.sh` retains the helper with a reusable commit
+check: the image revision must match the bundle's `SOURCE_COMMIT`.
+
+Temporary test containers, the internal database network and tmpfs database were
+removed. Existing panel/PDF/proxy containers were not upgraded or removed. These
+results do not promote any camouflage domain to mainland-verified status or enable
+AnyTLS creation before subscription, topology and accounting integration.
