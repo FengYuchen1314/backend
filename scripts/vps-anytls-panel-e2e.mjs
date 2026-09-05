@@ -274,7 +274,9 @@ if (phase === 'resolve-camouflage') {
     } else if (phase === 'verify' || phase === 'reconcile') {
         const fixture = JSON.parse(await read('fixture.json'));
         if (phase === 'reconcile') {
-            await api(`/nodes/${fixture.nodeUuid}/actions/restart`, 'POST');
+            await api(`/nodes/${fixture.nodeUuid}/actions/restart`, 'POST', {
+                forceRestart: true,
+            });
             await waitFor('Agent restart reconciliation', async () => {
                 const node = await api(`/nodes/${fixture.nodeUuid}`);
                 return node.isConnected && !node.isConnecting;
