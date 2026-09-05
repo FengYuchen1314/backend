@@ -44,10 +44,11 @@ stubbed to check side-effect ordering. It covers both architectures, corrupt/mis
 downloads, a mismatched loaded image, existing installation preservation and a truncated entry
 script. Windows explicitly skips the Linux cases; Actions must run them before image publication.
 
-Actions image packaging and authenticated full-panel downloads have passed the acceptance
-checks below; the isolated VPS first install has not yet passed. These shell fixtures do not
-establish real Node health, shared-443 traffic, Mieru traffic, AnyTLS integration or the panel
-update workflow.
+Actions image packaging, authenticated full-panel downloads and a real Linux amd64 public-direct
+first install have passed the acceptance checks below. Arm64 execution and leased-line/residential
+first installs are not established by that VPS test. The shell fixtures alone do not establish
+Node health, shared-443 protocol traffic, Mieru traffic, AnyTLS integration or the panel update
+workflow; the latest acceptance scope is recorded separately below.
 
 Initial Actions checkpoint `610437ee`: all 84 ordinary tests passed on Linux with no skips,
 including the actual Bash/curl failure scenarios. One CI run then failed in the existing native
@@ -71,13 +72,13 @@ Its SHA-256 was verified locally and remotely:
 The private bundle directory is `/opt/xboard-topology-test.IqrzkjDo`; its disposable container
 was removed. It used container-loopback networking only, no public ports or Docker socket.
 
-The separate first-install fixture at `/opt/xboard-bootstrap-test.p8C9jmTr` has an empty private
-Docker image store, an independent Docker data volume and only the internal test-panel network.
-Registry egress is unavailable. A loopback HTTPS relay rejects clients without its private trust
-anchor and succeeds with explicit CA verification. This daemon is a temporary privileged test
-container, not a production deployment recommendation, and does not receive the host Docker
+The separate first-install fixture at `/opt/xboard-bootstrap-test.p8C9jmTr` was prepared with an
+empty private Docker image store, an independent Docker data volume and only the internal
+test-panel network. Registry egress was unavailable. A loopback HTTPS relay rejected clients
+without its private trust anchor and succeeded with explicit CA verification. This daemon was
+a temporary privileged test container, not a production deployment recommendation, without the host Docker
 socket or host networking. Bash/curl were provisioned as test OS prerequisites before disconnecting
-Internet access. No Agent has yet been installed in this fixture. Both PDF containers remain
+Internet access. At that checkpoint no Agent had yet been installed. Both PDF containers were
 healthy and their endpoint returned HTTP 200.
 
 The successful [paired image workflow](https://github.com/FengYuchen1314/backend/actions/runs/33943308182)
@@ -120,3 +121,51 @@ and packaging verified all six archives. The Docker build then caught a build-co
 it copied test sources but not the new shared readiness fixture they import. The fixture and
 its declaration are now copied into the builder stage only, not the final runtime. No image
 from that failed build was deployed, and VPS installation acceptance remains pending.
+
+## Accepted Actions image and real first install
+
+Backend `d17f4f2e0bc9e44a5bfea8b36a6469c5bd693681`, paired with frontend
+`db3fc697571735f5dc38ac1044d9c96ad676566c`, passed both the full
+[CI](https://github.com/FengYuchen1314/backend/actions/runs/33945412935) and the
+[multi-platform image workflow](https://github.com/FengYuchen1314/backend/actions/runs/33945413141).
+The accepted image is
+`ghcr.io/fengyuchen1314/backend@sha256:b6000aeed10f4ae1cd5cd5a5f75bdb3f5552fda69fb74216769fb561ec9bfdc2`.
+The VPS verified the exact source pair, runtime channel and all six embedded archive hashes
+before replacing only its disposable panel. Both topology records and the manual Mieru
+entry `34443` to IX `24443` mapping/shared profile survived unchanged.
+
+The full API downloaded all six archives again and verified byte counts, hashes and no-store
+headers. Replayed bootstrap tokens, invalid artifact grants, cross-role access and traversal
+were rejected. The newly API-generated public-direct installer then ran unmodified in the
+private Alpine/Docker engine with an empty image store and no registry egress. HTTPS used the
+explicit private trust anchor, not `--insecure`. BusyBox checksums, all three real image imports,
+identity checks and Compose startup succeeded. Node, HAProxy and Caddy were running with zero
+restarts; both edge services were healthy. The actual port-80 HAProxy route reached Caddy's
+unconfigured 404 seed, and installation directory/config permissions were `700`/`600`.
+
+An independent read-only health check used the disposable panel's real CA, client certificate
+and signing key, pinning the exact Node certificate issued in the installer. The Node health
+API answered successfully, as did the Agent's HAProxy master-socket and Caddy-admin checks.
+Missing mTLS, missing JWT and invalid JWT were rejected; a subsequent authorized health request
+still passed. No proxy profile was applied, so this is not evidence of shared-443 protocol
+traffic, working public website TLS/ACME or connected proxy users.
+
+Re-running the installer failed before modification. Hashes of all four generated configuration
+files and the exact container IDs remained unchanged. Private acceptance files are under
+`/opt/xboard-panel-test.oKbMNrzT/bootstrap-d17f4f2e`; installer files contain credentials and must
+not be published or displayed.
+
+Separately, the Actions-compiled `a5100ba5` topology bundle passed 61/61 tests with no skips on
+the VPS: twenty fresh client processes per scenario, eight non-retried traffic requests each,
+and the half-close regression. Every chain's per-hop counts matched. Bundle SHA-256:
+`d0daae1d3296f782922b19002016e287a1005c17139929068eb4b45978189747`.
+The isolated test container was removed; the verified bundle remains in
+`/opt/xboard-topology-test.qKGNP4i5`. This establishes container-loopback native-client behavior,
+not cross-physical-server traffic or all protocol combinations.
+
+After acceptance, the temporary privileged engine, TLS relay and engine's dedicated image-store
+volume (including the three disposable services) were removed. No host Docker socket, host
+network or existing service was involved. The test panel was restarted using its original saved
+environment, removing the temporary loopback-TLS origin override; both topology records and
+the Mieru mapping/profile were again verified unchanged. Private evidence and prior images were
+retained. Both PDF containers remained healthy, and the PDF endpoint returned HTTP 200.
