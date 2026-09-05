@@ -2,6 +2,18 @@
 
 ## 最新汇总与上传范围（2026-09-06）
 
+当前 Frontend 检查点为 `6c7933ca172eab7fe321fd74971528ddb09a0c43`，分支 `wip/shared-443-ui`。本次仅汇总、检查并上传已有进度，不新增功能、不部署 VPS、不合并主分支或更新发布标签；Backend 本次只有进度文档变更，Node 保持 `0e8ae34f`。
+
+- **新增修复**：登录/注册在异步校验前捕获提交归属，并在请求及 token 提交前检查，阻止旧表单、旧会话或卸载后的登录结果生效。弹窗关闭立即取消未完成的导出、提示和重载，快速重开不会复用旧任务。
+- **HeroUI 迁移**：在上一批认证、快捷入口和加载/错误状态基础上，增加桌面/移动导航布局、帮助/重命名/标签、快捷启动器及链接编辑、页头/版本更新确认、Prime 和 Recap。沿用原路由、目录、API 和偏好数据，保留相应管理功能；并未完成整站迁移，其他页面、复杂表格及大量弹窗仍依赖 Mantine。
+- **本地检查**：默认测试共 337 项通过（87 + 151 + 99），无跳过；类型检查、全仓 lint、改动文件格式及 diff 检查通过。本机和 VPS 未编译应用；当前提交的编译由推送后的 GitHub Actions 执行，不能把前一提交的成功当成当前提交通过。
+- **已有成功构建**：Frontend `42f427ec` 的 [前端 CI](https://github.com/FengYuchen1314/frontend/actions/runs/33979420364) 成功；Backend `05e44d97` + Frontend `42f427ec` 的 [精确配套镜像](https://github.com/FengYuchen1314/backend/actions/runs/33979683680) 也成功。这两项都不包含 `6c7933ca` 的本批代码。
+- **VPS 与待验收范围**：本次未部署，测试面板仍为 Backend `c5b9d397` + Frontend `eb8f1790` 的既有实测版本。新的导航、焦点、叠层、移动端/RTL/主题、拖动、剪贴板权限和十三类重命名/标签保存读回尚待浏览器验收。原始需求中的混合协议共享 443 完整联测、七地区各三组独立非 Cloudflare CDN 域名池、一键更新故障恢复及跨物理服务器编排也仍未完成。
+
+详细内容见 [当前 HeroUI 检查点](https://github.com/FengYuchen1314/frontend/blob/6c7933ca172eab7fe321fd74971528ddb09a0c43/docs/heroui-g0-checkpoint.md)。已检查本批变更未包含真实凭据、私钥、token、私有测试配置和临时产物；删除的八个旧样式文件可从 Git 历史恢复。
+
+## 上一批汇总：Frontend `42f427ec`
+
 本次收拢已有代码和文档并上传 GitHub，不继续扩展功能、不部署 VPS、不合并主分支、不更新发布标签。下方早期检查点保留为历史记录；版本或状态冲突时以本节及对应的带版本验收文档为准。
 
 - **Bug 修复**：Frontend `3d369d5bea04768a165b176e9999702eec82fd6c` 已通过 [Actions](https://github.com/FengYuchen1314/frontend/actions/runs/33978702245)，包含 166 项测试、类型检查、全仓 lint 和编译。新增认证单一状态源、内部组选择草稿隔离，以及 Vault 原子 reset/恢复和事务失败处理。Backend 最近功能代码仍为 `c5b9d397`，本次只更新进度文档。
