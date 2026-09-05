@@ -45,11 +45,54 @@ core failures can widen that window. This is not a zero-loss crash guarantee.
 
 ## Verification status
 
-Local unit tests, TypeScript checking and lint passed. New PostgreSQL tests cover
+Local unit tests, TypeScript checking and lint passed. PostgreSQL tests cover
 concurrent duplicates, out-of-order delivery, fractional charging, rollback and
 retry, physical-node scoping, new epochs, counters above JavaScript's safe integer
 range, disabled optional history and deleted users. Actions and VPS execution of
-these database tests are pending at this implementation checkpoint.
+these database tests passed at the accepted checkpoint below.
 
 Managed creation, installer enablement/state mounts, complete native-client to
 real-panel accounting and live-panel rollout remain separate acceptance work.
+
+## Accepted accounting checkpoint — 2026-09-05
+
+Functional backend commit `6c2105e30df3ac0c46619ec73eb76b9dbf40d19f`:
+
+- [CI 33961044908](https://github.com/FengYuchen1314/backend/actions/runs/33961044908)
+  passed formatting, lint, source tests, native client regressions, database
+  migrations/concurrency tests, application build, dependency/API wiring and
+  compilation/replay of the portable acceptance bundle. Both AnyTLS PostgreSQL
+  tests executed successfully with zero skips.
+- [Image 33961045024](https://github.com/FengYuchen1314/backend/actions/runs/33961045024)
+  passed with frontend `db3fc697571735f5dc38ac1044d9c96ad676566c`. Digest:
+  `ghcr.io/fengyuchen1314/backend@sha256:13c84f2c2ab23442ba75ac640c2b1cde046942a0ff9439eb228052ef59721acc`.
+- Artifact `9967976249`, ZIP SHA-256
+  `2f371fdc3609a025c938479889bd3fb6ee56dcce57d6d601761fee918b34da1a`,
+  tar SHA-256 `0b5b257faa2b32e9f9e7fdc0ddc598ae372750af06ee6283fa06ecb1d88849d4`.
+  It was transferred directly to VPS 185.99.135.224, checksum-verified and extracted
+  under `/opt/xboard-anytls-panel-test.67x8tkHP`.
+- `panel-acceptance.log`: 41/41 compiled panel tests passed, zero skips, using the
+  earlier pinned dependency image. `database-acceptance.log`: the new full image's
+  OCI source revision matched the artifact, all migrations succeeded, and both
+  compiled PostgreSQL identity/accounting tests passed with zero skips.
+  The database used its own internal network and tmpfs storage, no host ports,
+  Docker socket or existing panel database. Test containers and network were removed.
+- The current Node image additionally passed real encrypted Mihomo TCP through
+  shared 443 into its cumulative API, with stable nonzero counters after repeated
+  polls, reconciliation, restarts and listener removal. Evidence is in Node's
+  `docs/anytls-cumulative-usage.md`; this is not a claim that a real panel poll has
+  yet billed that exact native-client session end to end.
+
+The original 16 VPS container IDs were still running after testing and the PDF
+service returned HTTP 200 on port 38100. The existing browser test panel was not
+upgraded. Source and test scripts were built only in Actions; the VPS ran them.
+
+Frontend editor repairs are independent: Mieru no longer mounts the Xray WASM
+loader, and unavailable Xray validation requires the existing explicit Save Anyway
+confirmation. Frontend `406ebfee` passed CI 33961619989; the follow-up source is
+`a0c767388740106c2e87e1841d6b9ff42f83fbd3` (38 local tests/typecheck/changed-file lint
+passed). The obsolete intermediate paired run 33961934000 was intentionally
+cancelled. [Paired run 33962077276](https://github.com/FengYuchen1314/backend/actions/runs/33962077276)
+uses backend `6c2105e3` and this final frontend revision; it was still running when
+this checkpoint was written. Do not claim browser acceptance or an image digest
+for that new pair yet.
