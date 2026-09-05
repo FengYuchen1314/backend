@@ -38,3 +38,33 @@ rejected by the production schema. This is a failed image acceptance, not a work
 The workflow now keeps the runtime channel separate. A regression test reads the emitted
 build argument and checks it against the actual production config schema; it failed before
 the correction. Rebuilding and repeating fresh-database API/browser acceptance is required.
+
+## Corrected image and API findings
+
+Backend `9ce0671f2ff3d1812554745b169d3389d3203e7f`, paired with frontend
+`5df763b7e151d8a9247f2bed3d862621fc360016`, passed
+[CI 33934548252](https://github.com/FengYuchen1314/backend/actions/runs/33934548252) and
+[image build 33934548473](https://github.com/FengYuchen1314/backend/actions/runs/33934548473).
+The published and VPS-pulled digest is
+`sha256:44e5a1bdd2ccd83708eb75be751da7cc101d0fa5b638b0d05d2775b0ae0c400b`.
+
+On 2026-09-05, `/opt/xboard-panel-test.oKbMNrzT` on the test VPS booted this unmodified image,
+with no runtime-channel override, against a fresh private PostgreSQL/Valkey fixture. Production
+migrations/seeding, served HTML and its actual module asset, disposable admin registration,
+unauthorized denial and authenticated nodes/profiles/topologies/camouflage-catalog reads passed.
+Admin-JWT requests include the same client-type header as the browser; absence is separately
+verified as forbidden. Every catalog seed remains ineligible for automatic selection without
+the required live evidence. The private test relay is reached over SSH, not public TLS/ACME.
+
+Further API checks passed managed server-type rejection before persistence, public Vision and
+broadband SOCKS creation, reverse-proxy desired-setting persistence and stale revision rejection,
+and topology reference/layout persistence, stale-version rejection and self-loop rejection.
+These are offline metadata fixtures, not real Agent deployment or client-traffic acceptance.
+
+One integration finding remains in that image: reverse-proxy input rejected by the service uses
+the upstream generic config error `A061`, whose HTTP status is 500. Wrong server type and
+upstream loops must be client errors. The correction introduces the edge-specific `XE002`/400
+without changing the upstream generic error globally. A regression exercises the actual service
+and controller error handler, failed before the correction, and confirms no persistence occurs.
+The corrected error mapping still needs Actions/VPS image revalidation; the earlier image is
+not a full feature-acceptance pass. Browser acceptance is recorded separately when performed.

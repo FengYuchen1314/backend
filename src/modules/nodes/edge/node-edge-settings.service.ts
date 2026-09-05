@@ -58,7 +58,7 @@ export class NodeEdgeSettingsService {
         if (!node) return fail(ERRORS.NODE_NOT_FOUND);
         if (node.serverType !== SERVER_TYPES.PUBLIC_DIRECT)
             return fail(
-                ERRORS.CONFIG_VALIDATION_ERROR.withMessage(
+                ERRORS.INVALID_NODE_EDGE_SETTINGS.withMessage(
                     'Shared-443 reverse proxy requires a public-direct server.',
                 ),
             );
@@ -86,7 +86,7 @@ export class NodeEdgeSettingsService {
             // Never log the prepared config: it includes user credentials.
             this.logger.warn('Shared-443 desired settings could not be saved.');
             return fail(
-                ERRORS.CONFIG_VALIDATION_ERROR.withMessage(
+                ERRORS.INVALID_NODE_EDGE_SETTINGS.withMessage(
                     error instanceof Error ? error.message : 'Invalid reverse-proxy settings.',
                 ),
             );

@@ -6,6 +6,8 @@ import { test } from 'node:test';
 import { QueryBus } from '@nestjs/cqrs';
 
 import { AxiosService } from '@common/axios';
+import { HttpExceptionWithErrorCodeType } from '@common/exception/http-exeception-with-error-code.type';
+import { errorHandler } from '@common/helpers/error-handler.helper';
 
 import { NodesRepository } from '../repositories/nodes.repository';
 import { NodeEdgeSettingsRepository } from './node-edge-settings.repository';
@@ -79,6 +81,35 @@ test('edge saves reject wrong server type and self-loop before persistence', asy
     Object.assign(f.node, { serverType: SERVER_TYPES.LEASED_LINE });
     assert.equal((await f.service.save('node', draft)).isOk, false);
     assert.equal(f.saved(), 0);
+});
+
+test('invalid edge input maps through the controller error handler to HTTP 400, not a server error', async () => {
+    for (const invalid of ['server-type', 'self-loop']) {
+        const f = fixture();
+        if (invalid === 'server-type') {
+            Object.assign(f.node, { serverType: SERVER_TYPES.BROADBAND_LANDING });
+        }
+        const result = await f.service.save('node', {
+            ...draft,
+            settings: {
+                management: null,
+                website: {
+                    ...draft.settings.website,
+                    ...(invalid === 'self-loop' ? { upstream: 'https://198.51.100.1/' } : {}),
+                },
+            },
+        });
+        assert.throws(
+            () => errorHandler(result),
+            (error: unknown) => {
+                assert(error instanceof HttpExceptionWithErrorCodeType);
+                assert.equal(error.getStatus(), 400);
+                assert.equal(error.errorCode, 'XE002');
+                return true;
+            },
+        );
+        assert.equal(f.saved(), 0);
+    }
 });
 test('edge contracts reject proxy paths, credentials, fragments, duplicate domains and unsafe hostnames', () => {
     for (const upstream of [

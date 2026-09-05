@@ -1370,4 +1370,14 @@ export const ERRORS = {
         message: 'Reverse-proxy settings changed. Reload before saving.',
         httpCode: 409,
     },
+    INVALID_NODE_EDGE_SETTINGS: {
+        code: 'XE002',
+        message: 'Invalid reverse-proxy settings.',
+        httpCode: 400,
+        withMessage: (message: string) => ({
+            code: 'XE002',
+            message,
+            httpCode: 400,
+        }),
+    },
 } as const;
