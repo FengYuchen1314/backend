@@ -57,6 +57,9 @@ RUN npm ci --prefer-offline --no-audit --no-fund
 COPY tsconfig*.json ./
 COPY src ./src
 COPY libs ./libs
+# The compiler type-checks test sources too. Keep their shared fixture in the build
+# stage only; it is not copied into the final production image.
+COPY scripts/mihomo-test-readiness.mjs scripts/mihomo-test-readiness.d.mts ./scripts/
 
 RUN npm run migrate:generate \
     && npm run generate:openapi \

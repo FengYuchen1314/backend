@@ -112,3 +112,11 @@ chain. All eight topology requests still execute once, and exact per-hop connect
 remain mandatory. Unit tests reject an open-but-not-ready SOCKS frontend, a wrong challenge,
 and an exited client; readiness has a bounded deadline. Native Actions/VPS verification of
 this harness correction remains required.
+
+Revision `a5100ba5` passed the full
+[CI run](https://github.com/FengYuchen1314/backend/actions/runs/33944994091), including the
+31 native cases and ten cases in the compiled portable bundle. Image validation also passed,
+and packaging verified all six archives. The Docker build then caught a build-context omission:
+it copied test sources but not the new shared readiness fixture they import. The fixture and
+its declaration are now copied into the builder stage only, not the final runtime. No image
+from that failed build was deployed, and VPS installation acceptance remains pending.
