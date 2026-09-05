@@ -35,3 +35,11 @@ export function isCloudflareCdnAddress(address: string): boolean {
     const family = isIP(address);
     return family !== 0 && ranges.check(address, family === 4 ? 'ipv4' : 'ipv6');
 }
+
+// Match the Agent and standalone discovery policy, without mistaking a DNS-only nameserver
+// choice or an unrelated hostname containing "cloudflare" for CDN use.
+export function isCloudflareCdnHostname(hostname: string): boolean {
+    return /(^|\.)(?:cloudflare\.(?:com|net)|cloudflare-dns\.com|pages\.dev|workers\.dev|r2\.dev)\.?$/i.test(
+        hostname,
+    );
+}

@@ -7,7 +7,7 @@ import {
     TCamouflageDomainValidation,
 } from '@contract/models';
 
-import { isCloudflareCdnAddress } from './cloudflare-ip-ranges';
+import { isCloudflareCdnAddress, isCloudflareCdnHostname } from './cloudflare-ip-ranges';
 
 const HOUR_MS = 60 * 60 * 1_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -30,9 +30,10 @@ function isCloudflare(report: TCamouflageDomainAgentValidationReport): boolean {
         report.cloudflare.detected ||
         report.cloudflare.signals.length > 0 ||
         report.dns.addresses.some(isCloudflareCdnAddress) ||
+        isCloudflareCdnHostname(report.domain) ||
         report.edge.asn === 'AS13335' ||
         (report.edge.provider?.toLowerCase().includes('cloudflare') ?? false) ||
-        report.dns.cnameChain.some((name) => name.includes('cloudflare')) ||
+        report.dns.cnameChain.some(isCloudflareCdnHostname) ||
         (report.http.serverHeader?.toLowerCase().includes('cloudflare') ?? false)
     );
 }

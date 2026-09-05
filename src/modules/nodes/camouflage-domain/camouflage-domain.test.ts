@@ -221,6 +221,40 @@ test('cache key includes node, normalized domain, and DNS fingerprint', () => {
     );
 });
 
+test('Cloudflare service hostnames and CNAMEs cannot be hidden by an old clean report or cache', () => {
+    for (const suffix of ['cloudflare.com', 'pages.dev', 'workers.dev', 'r2.dev']) {
+        for (const source of ['domain', 'cname']) {
+            const domain = source === 'domain' ? `tenant.${suffix}` : 'example.com';
+            const value = report(domain);
+            if (source === 'cname') value.dns.cnameChain = [`TENANT.${suffix.toUpperCase()}.`];
+            const evaluated = evaluateCamouflageDomainValidation(value, NOW);
+            assert.equal(evaluated.eligible, false);
+            assert.ok(
+                evaluated.failures.includes(
+                    CAMOUFLAGE_DOMAIN_VALIDATION_FAILURES.CLOUDFLARE_DETECTED,
+                ),
+            );
+            const cached = buildCamouflageDomainValidation(NODE_UUID, value, NOW);
+            cached.eligible = true;
+            assert.equal(
+                canAutoSelectCamouflageDomain(
+                    seed(domain, 'DigitalOcean', 'AS14061'),
+                    cached,
+                    NODE_UUID,
+                    new Set(),
+                    NOW,
+                ),
+                false,
+            );
+        }
+        for (const domain of [`not${suffix}`, `${suffix}.example.com`]) {
+            const value = report(domain);
+            value.dns.cnameChain = [domain];
+            assert.equal(evaluateCamouflageDomainValidation(value, NOW).eligible, true);
+        }
+    }
+});
+
 test('cache stores the exact result and refuses it after policy expiry', async () => {
     const values = new Map<string, unknown>();
     const ttls = new Map<string, number | undefined>();
