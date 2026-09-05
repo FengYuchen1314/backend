@@ -226,7 +226,7 @@ if (phase === 'resolve-camouflage') {
         await save(
             'fixture.json',
             JSON.stringify({
-                userUuid: user.uuid,
+                userId: user.id,
                 nodeUuid: node.uuid,
                 profileUuid: profile.uuid,
                 inboundUuid: profile.inbounds[0].uuid,
@@ -343,8 +343,9 @@ if (phase === 'resolve-camouflage') {
                     req.on('timeout', () => req.destroy(new Error('Agent usage deadline')));
                     req.end();
                 });
+            assert(Number.isSafeInteger(fixture.userId) && fixture.userId > 0);
             const user = await prisma.users.findUniqueOrThrow({
-                where: { uuid: fixture.userUuid },
+                where: { id: BigInt(fixture.userId) },
             });
             const node = await prisma.nodes.findUniqueOrThrow({
                 where: { uuid: fixture.nodeUuid },
@@ -390,7 +391,7 @@ if (phase === 'resolve-camouflage') {
                 assert.equal(ledger.counters[String(user.id)].uplink, snapshot.users[0].uplink);
                 assert.equal(ledger.counters[String(user.id)].downlink, snapshot.users[0].downlink);
                 assert.equal(
-                    BigInt((await api(`/users/${user.uuid}`)).userTraffic.usedTrafficBytes),
+                    BigInt((await api(`/users/${user.id}`)).userTraffic.usedTrafficBytes),
                     charged,
                 );
             };
