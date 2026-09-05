@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { MIHOMO_IP_VERSION, SUBSCRIPTION_TEMPLATE_TYPE } from '../constants';
+import { AnyTlsListenerSchema, AnyTlsUserSchema } from './anytls.schema';
+import { CamouflageDomainSchema } from './camouflage-domain.schema';
 import { HostMapperSchema } from './host-mapper';
 
 export const VlessProtocolOptionsSchema = z.object({
@@ -91,6 +93,30 @@ export const SocksProtocolOptionsSchema = z.object({
     password: z.string(),
 });
 
+export const AnyTlsProtocolOptionsSchema = z
+    .object({
+        mode: z.literal('ENCRYPTED_SHADOWTLS_V3'),
+        inboundUuid: z.uuid(),
+        password: AnyTlsUserSchema.shape.password,
+        wrapperPassword: AnyTlsListenerSchema.shape.wrapperPassword,
+        shadowPassword: AnyTlsListenerSchema.shape.shadowPassword,
+        caFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+        innerPort: AnyTlsListenerSchema.shape.innerPort,
+        serverName: CamouflageDomainSchema,
+        camouflageServerName: CamouflageDomainSchema,
+    })
+    .strict()
+    .refine(
+        (value) =>
+            value.serverName === `${value.inboundUuid.toLowerCase()}.anytls.internal` &&
+            value.password !== value.wrapperPassword &&
+            value.password !== value.shadowPassword &&
+            value.wrapperPassword !== value.shadowPassword,
+        {
+            message: 'AnyTLS needs its exact inbound identity and independent credentials.',
+        },
+    );
+
 export const MieruProtocolOptionsSchema = z.object({
     username: z.string(),
     password: z.string(),
@@ -158,6 +184,9 @@ const MieruProtocolSchema = z.object({
 });
 
 export const ProtocolVariantSchema = z.discriminatedUnion('protocol', [
+    z
+        .object({ protocol: z.literal('anytls'), protocolOptions: AnyTlsProtocolOptionsSchema })
+        .meta({ title: 'anytls' }),
     VlessProtocolSchema.meta({ title: 'vless' }),
     TrojanProtocolSchema.meta({ title: 'trojan' }),
     ShadowsocksProtocolSchema.meta({ title: 'shadowsocks' }),

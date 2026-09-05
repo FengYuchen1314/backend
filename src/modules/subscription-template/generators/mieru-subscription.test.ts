@@ -55,9 +55,12 @@ const host = {
 } as const satisfies ResolvedProxyConfig;
 
 test('Mieru resolver validates managed settings and keeps user credentials', () => {
-    const resolver = new ResolveProxyConfigService({
-        getOrThrow: () => 'subscription.example.com',
-    } as never);
+    const resolver = new ResolveProxyConfigService(
+        {
+            getOrThrow: () => 'subscription.example.com',
+        } as never,
+        {} as never,
+    );
     const resolved = (
         resolver as unknown as {
             resolveProtocolOptions(

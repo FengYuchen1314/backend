@@ -87,7 +87,9 @@ export function graph(balanced = false): TTopologyGraph {
         })),
     };
 }
-export function bound(balanced = false): BoundSubscriptionTopology {
+export function bound(
+    balanced = false,
+): BoundSubscriptionTopology & { hosts: Map<string, ResolvedProxyConfig> } {
     const topology: TTopology = {
         uuid: id(999),
         name: 'Published chain',

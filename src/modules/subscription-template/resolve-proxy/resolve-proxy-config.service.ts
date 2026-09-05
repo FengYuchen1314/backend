@@ -12,7 +12,7 @@ import {
     WebSocketConfig,
 } from 'xray-typed';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { TypedConfigService } from '@common/config/app-config';
 import { deriveSocksPassword } from '@common/helpers/derive-socks-password';
@@ -21,14 +21,22 @@ import {
     resolveInboundAndMlDsa65PublicKey,
     resolveInboundAndPublicKey,
 } from '@common/helpers/xray-config';
+import { AnyTlsInboundDefinition } from '@common/helpers/xray-config/managed-xray-profile';
 import { getSsPassword, isSS2022MethodFromMethod } from '@common/helpers/xray-config/ss-cipher';
 import { getVlessFlow } from '@common/utils/flow';
 import { TemplateEngine } from '@common/utils/templates/replace-templates-values';
 import { setVlessRouteForUuid } from '@common/utils/vless-route';
 import { SECURITY_LAYERS, USERS_STATUS } from '@libs/contracts/constants';
+import { AnyTlsProfileExtensionSchema, AnyTlsProtocolOptionsSchema } from '@libs/contracts/models';
 
+import { deriveAnyTlsPassword } from '@modules/anytls/anytls-identity';
+import { AnyTlsMaterialService } from '@modules/anytls/anytls-material.service';
 import { ExternalSquadEntity } from '@modules/external-squads/entities';
 import { HostWithRawInbound } from '@modules/hosts/entities/host-with-inbound-tag.entity';
+import {
+    isCloudflareCdnAddress,
+    isCloudflareCdnHostname,
+} from '@modules/nodes/camouflage-domain/cloudflare-ip-ranges';
 import { ISRRContext } from '@modules/subscription-response-rules/interfaces';
 import { SubscriptionSettingsEntity } from '@modules/subscription-settings/entities/subscription-settings.entity';
 import { UserEntity } from '@modules/users/entities';
@@ -73,16 +81,21 @@ interface MieruInboundConfig {
     tag?: string;
 }
 
-type ResolvableInboundConfig = InboundConfig | MieruInboundConfig;
+type AnyTlsInboundConfig = AnyTlsInboundDefinition['rawInbound'] & { streamSettings?: undefined };
+type ResolvableInboundConfig = InboundConfig | MieruInboundConfig | AnyTlsInboundConfig;
 
 @Injectable()
 export class ResolveProxyConfigService {
+    private readonly logger = new Logger(ResolveProxyConfigService.name);
     private readonly nanoid: ReturnType<typeof customAlphabet>;
     private readonly subPublicDomain: string;
     private readonly domainRegex =
         /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
-    constructor(private readonly configService: TypedConfigService) {
+    constructor(
+        private readonly configService: TypedConfigService,
+        private readonly anyTlsMaterial: AnyTlsMaterialService,
+    ) {
         this.nanoid = customAlphabet('0123456789abcdefghjkmnopqrstuvwxyz', 10);
         this.subPublicDomain = this.configService.getOrThrow('SUB_PUBLIC_DOMAIN');
     }
@@ -126,6 +139,7 @@ export class ResolveProxyConfigService {
 
         const knownRemarks = new Map<string, number>();
         const resolvedProxyConfigs: ResolvedProxyConfig[] = [];
+        const identities = new Map<string, ReturnType<AnyTlsMaterialService['clientIdentity']>>();
 
         const userValueMap = TemplateEngine.createUserValueMap(
             user,
@@ -133,8 +147,65 @@ export class ResolveProxyConfigService {
             this.subPublicDomain,
         );
 
-        for (const inputHost of hosts) {
+        for (const originalHost of hosts) {
+            const inputHost = structuredClone(originalHost);
             this.applyHostOverrides(inputHost, hostsOverrides);
+
+            let protocol: ProtocolVariant | undefined;
+            if ((inputHost.rawInbound as { protocol?: string } | null)?.protocol === 'anytls') {
+                try {
+                    const inbound = inputHost.rawInbound as AnyTlsInboundConfig;
+                    const definition = AnyTlsProfileExtensionSchema.parse({
+                        version: 1,
+                        listeners: [inbound.settings],
+                    }).listeners[0];
+                    const uuid = inputHost.configProfileInboundUuid;
+                    if (
+                        !uuid ||
+                        definition.tag !== inputHost.inboundTag ||
+                        inbound.tag !== definition.tag ||
+                        isCloudflareCdnHostname(definition.camouflage.serverName) ||
+                        isCloudflareCdnAddress(definition.camouflage.address)
+                    )
+                        throw new Error('Invalid managed AnyTLS host binding.');
+                    // Generic Host TLS/transport overrides cannot remove or replace either
+                    // required authentication layer. Creation/edit UI must hide these controls.
+                    if (
+                        inputHost.keepSniBlank ||
+                        inputHost.overrideSniFromAddress ||
+                        (inputHost.sni &&
+                            inputHost.sni.trim().toLowerCase() !==
+                                definition.camouflage.serverName) ||
+                        inputHost.securityLayer === SECURITY_LAYERS.NONE ||
+                        inputHost.pinnedPeerCertSha256 ||
+                        inputHost.verifyPeerCertByName ||
+                        toNonEmptyRecord(inputHost.finalMask) ||
+                        toNonEmptyRecord(inputHost.sockoptParams) ||
+                        toNonEmptyRecord(inputHost.muxParams) ||
+                        (inputHost.mapper?.mihomo?.length ?? 0) > 0
+                    )
+                        throw new Error('Unsupported AnyTLS security override.');
+                    if (!identities.has(uuid))
+                        identities.set(uuid, this.anyTlsMaterial.clientIdentity(uuid));
+                    const identity = await identities.get(uuid)!;
+                    protocol = {
+                        protocol: 'anytls',
+                        protocolOptions: AnyTlsProtocolOptionsSchema.parse({
+                            mode: 'ENCRYPTED_SHADOWTLS_V3',
+                            inboundUuid: uuid,
+                            password: deriveAnyTlsPassword(user.trojanPassword, uuid),
+                            ...identity,
+                            innerPort: definition.innerPort,
+                            camouflageServerName: definition.camouflage.serverName,
+                        }),
+                    };
+                } catch {
+                    this.logger.warn(
+                        `AnyTLS Host ${inputHost.uuid} omitted: invalid binding, security override or unprovisioned identity.`,
+                    );
+                    continue;
+                }
+            }
 
             const finalRemark = this.deduplicateRemark(
                 TemplateEngine.replace(inputHost.remark, userValueMap),
@@ -149,6 +220,7 @@ export class ResolveProxyConfigService {
                 publicKeyMap,
                 mldsa65PublicKeyMap,
                 encryptionMap,
+                protocol,
             });
 
             if (resolvedProxyConfig) {
@@ -598,34 +670,57 @@ export class ResolveProxyConfigService {
         publicKeyMap: Map<string, string>;
         mldsa65PublicKeyMap: Map<string, string>;
         encryptionMap: Map<string, string>;
+        protocol?: ProtocolVariant;
     }): ResolvedProxyConfig | null {
         const { inputHost, inbound, finalRemark, user } = ctx;
 
         const address = this.resolveRandomizedValue(inputHost.address);
 
-        const protocol = this.resolveProtocolOptions(
-            inputHost,
-            inbound,
-            user,
-            ctx.encryptionMap.get(inputHost.inboundTag),
-        );
+        const protocol =
+            ctx.protocol ??
+            this.resolveProtocolOptions(
+                inputHost,
+                inbound,
+                user,
+                ctx.encryptionMap.get(inputHost.inboundTag),
+            );
 
         if (!protocol) {
             return null;
         }
 
-        const transport = this.resolveTransport(inbound.streamSettings, inputHost, protocol, {
-            vlessUuid: user.vlessUuid,
-        });
+        const transport: TransportVariant =
+            protocol.protocol === 'anytls'
+                ? { transport: 'tcp', transportOptions: { header: null } }
+                : this.resolveTransport(inbound.streamSettings, inputHost, protocol, {
+                      vlessUuid: user.vlessUuid,
+                  });
 
-        const security = this.resolveSecurity(
-            inbound.streamSettings,
-            inputHost,
-            inbound.tag!,
-            ctx.publicKeyMap,
-            ctx.mldsa65PublicKeyMap,
-            address,
-        );
+        const security: SecurityVariant =
+            protocol.protocol === 'anytls'
+                ? {
+                      security: 'tls',
+                      securityOptions: {
+                          serverName: protocol.protocolOptions.serverName,
+                          fingerprint: inputHost.fingerprint ?? 'chrome',
+                          pinnedPeerCertSha256: null,
+                          verifyPeerCertByName: null,
+                          alpn: null,
+                          enableSessionResumption: false,
+                          echConfigList: null,
+                          echForceQuery: null,
+                          echSockopt: null,
+                          cipherSuites: null,
+                      },
+                  }
+                : this.resolveSecurity(
+                      inbound.streamSettings,
+                      inputHost,
+                      inbound.tag!,
+                      ctx.publicKeyMap,
+                      ctx.mldsa65PublicKeyMap,
+                      address,
+                  );
 
         return {
             finalRemark: finalRemark,
@@ -747,6 +842,8 @@ export class ResolveProxyConfigService {
                 return null;
             }
 
+            // Managed AnyTLS can only originate from a bound inbound and provisioned identity.
+            if ('protocol' in parsed && parsed.protocol === 'anytls') return null;
             return parsed as ResolvedProxyConfig;
         } catch {
             return null;

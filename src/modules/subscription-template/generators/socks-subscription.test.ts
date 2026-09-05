@@ -64,9 +64,12 @@ test('resolved SOCKS model carries numeric username and password', () => {
 });
 
 test('subscription resolver and inbound injection use the same dedicated SOCKS password', () => {
-    const resolver = new ResolveProxyConfigService({
-        getOrThrow: () => 'subscription.example.com',
-    } as never);
+    const resolver = new ResolveProxyConfigService(
+        {
+            getOrThrow: () => 'subscription.example.com',
+        } as never,
+        {} as never,
+    );
     const resolvedProtocol = (
         resolver as unknown as {
             resolveProtocolOptions(

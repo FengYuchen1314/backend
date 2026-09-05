@@ -130,6 +130,7 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > test-dist/SOURCE_COMMIT
           cp scripts/vps-topology-smoke.sh test-dist/
           cp scripts/vps-anytls-panel-smoke.sh test-dist/
+          cp scripts/vps-anytls-subscription-smoke.sh test-dist/
           tar --create --gzip --file topology-acceptance.tar.gz --directory test-dist .
           sha256sum topology-acceptance.tar.gz > topology-acceptance.tar.gz.sha256
 

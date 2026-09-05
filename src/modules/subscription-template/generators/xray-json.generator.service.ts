@@ -224,7 +224,9 @@ export class XrayJsonGeneratorService {
             )) as unknown as XrayJsonConfig;
 
             const configs: XrayJsonConfig[] = [];
-            const compatibleHosts = hosts.filter((host) => host.protocol !== 'mieru');
+            const compatibleHosts = hosts.filter(
+                (host) => host.protocol !== 'mieru' && host.protocol !== 'anytls',
+            );
 
             for (const host of compatibleHosts) {
                 if (host.metadata.isHidden) continue;
@@ -269,7 +271,7 @@ export class XrayJsonGeneratorService {
         isExtendedClient: boolean,
         tag = 'proxy',
     ): XrayJsonConfig | null {
-        if (host.protocol === 'mieru') return null;
+        if (host.protocol === 'mieru' || host.protocol === 'anytls') return null;
 
         try {
             const outbound = this.buildOutbound(host, tag);
@@ -347,6 +349,8 @@ export class XrayJsonGeneratorService {
                 return PROTOCOL_BUILDERS.socks(host);
             case 'mieru':
                 throw new Error('Mieru is not supported by standard Xray JSON clients.');
+            case 'anytls':
+                throw new Error('Managed AnyTLS is only supported by Mihomo subscriptions.');
         }
     }
 

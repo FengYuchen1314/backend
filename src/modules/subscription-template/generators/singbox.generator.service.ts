@@ -8,7 +8,7 @@ import type { BoundSubscriptionTopology } from '@modules/topologies/topology-sub
 
 import { applyHostMapper } from '../host-mapper';
 import { ResolvedProxyConfig } from '../resolve-proxy/interfaces';
-import { renderTopologies, TopologyInjection } from './topology-render';
+import { renderTopologies, singleHostProxy, TopologyInjection } from './topology-render';
 
 /**
  * Target: sing-box 1.13.x
@@ -147,11 +147,13 @@ export class SingBoxGeneratorService {
                       )
                     : []),
             ];
-            const injection = renderTopologies(topologies, 'SINGBOX', reserved, (host) =>
-                UNSUPPORTED_TRANSPORTS.has(host.transport)
-                    ? null
-                    : (this.buildOutbound(host) as unknown as Record<string, unknown> | null),
-            );
+            const injection = renderTopologies(topologies, 'SINGBOX', reserved, (host) => {
+                if (UNSUPPORTED_TRANSPORTS.has(host.transport)) return null;
+                const outbound = this.buildOutbound(host);
+                return outbound
+                    ? singleHostProxy(outbound as unknown as Record<string, unknown>)
+                    : null;
+            });
             return this.renderConfig(template, userOutbounds, injection);
         } catch (error) {
             this.logger.error(`Error generating sing-box config: ${error}`);
@@ -598,7 +600,7 @@ export class SingBoxGeneratorService {
     private renderConfig(
         template: Record<string, unknown>,
         userOutbounds: OutboundConfig[],
-        injection: TopologyInjection = { entries: [], proxies: [], groups: [] },
+        injection: TopologyInjection = { entries: [], proxies: [], groups: [], privateNames: [] },
     ): string {
         const allOutbounds = [...(template.outbounds as OutboundConfig[]), ...userOutbounds];
 

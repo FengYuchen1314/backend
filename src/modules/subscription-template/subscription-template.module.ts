@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 
+import { AnyTlsModule } from '@modules/anytls/anytls.module';
 import { TopologyModule } from '@modules/topologies/topology.module';
 
 import { TEMPLATE_RENDERERS } from './generators';
@@ -12,7 +13,7 @@ import { SubscriptionTemplateController } from './subscription-template.controll
 import { SubscriptionTemplateConverter } from './subscription-template.converter';
 import { SubscriptionTemplateService } from './subscription-template.service';
 @Module({
-    imports: [CqrsModule, TopologyModule],
+    imports: [CqrsModule, TopologyModule, AnyTlsModule],
     controllers: [SubscriptionTemplateController],
     providers: [
         SubscriptionTemplateService,

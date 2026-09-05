@@ -22,8 +22,10 @@ export RW_MIHOMO_BINARY="$client_dir/mihomo"
 export RW_SINGBOX_BINARY="$client_dir/sing-box-1.14.0-linux-amd64/sing-box"
 if [[ -n "${RW_TOPOLOGY_TEST_BUNDLE:-}" ]]; then
   node --test "$RW_TOPOLOGY_TEST_BUNDLE"
+  node --test "$(dirname "$RW_TOPOLOGY_TEST_BUNDLE")/anytls-clients.test.cjs"
 else
   npx tsx --test src/modules/subscription-template/generators/topology-clients.linux.test.ts
+  npx tsx --test src/modules/subscription-template/generators/anytls-clients.linux.test.ts
 fi
 
 if [[ -n "${RW_TOPOLOGY_EXPORT_DIR:-}" ]]; then

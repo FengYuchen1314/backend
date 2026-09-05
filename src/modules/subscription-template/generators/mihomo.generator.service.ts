@@ -11,7 +11,13 @@ import type { BoundSubscriptionTopology } from '@modules/topologies/topology-sub
 
 import { applyHostMapper } from '../host-mapper';
 import { ResolvedProxyConfig } from '../resolve-proxy/interfaces';
-import { renderTopologies, TopologyInjection } from './topology-render';
+import { buildAnyTlsMihomo, hideAnyTlsTransports } from './anytls-mihomo';
+import {
+    proxyNameAllocator,
+    renderTopologies,
+    singleHostProxy,
+    TopologyInjection,
+} from './topology-render';
 
 export interface MihomoData {
     proxies: ProxyNode[];
@@ -153,24 +159,21 @@ export class MihomoGeneratorService {
 
             const data: MihomoData = { proxies: [], rules: [] };
             const proxyRemarks: string[] = [];
-
+            const privateNames = new Set<string>();
+            const ordinary = new Map<ResolvedProxyConfig, ProxyNode>();
+            // Account for mapper-renamed ordinary proxies before allocating helpers.
             for (const host of hosts) {
+                if (host.protocol === 'anytls') continue;
                 if (!includeHidden && host.metadata.isHidden) continue;
                 if (host.metadata.excludeFromSubscriptionTypes.includes(templateType)) continue;
-
                 if (UNSUPPORTED_TRANSPORTS.has(host.transport)) continue;
-                if (UNSUPPORTED_PROTOCOLS.has(host.protocol)) continue;
                 if (isStash && host.transport === 'xhttp') continue;
-
-                const node = this.buildProxyNode(host, isExtendedClient);
-                if (!node) continue;
-
-                data.proxies.push(node);
-                proxyRemarks.push(host.finalRemark);
+                const proxy = this.buildProxyNode(host, isExtendedClient);
+                if (proxy) ordinary.set(host, proxy);
             }
-
-            const reserved = [
-                ...data.proxies.map((node) => node.name),
+            const reserved = new Set([
+                ...hosts.map((host) => host.finalRemark),
+                ...[...ordinary.values()].map((node) => node.name),
                 ...['proxies', 'proxy-groups'].flatMap((key) =>
                     Array.isArray(yamlConfig[key])
                         ? (yamlConfig[key] as Array<{ name?: string }>).map(
@@ -183,22 +186,66 @@ export class MihomoGeneratorService {
                 'GLOBAL',
                 'PASS',
                 'COMPATIBLE',
-            ];
+            ]);
+            const allocateName = proxyNameAllocator(reserved);
+
+            for (const host of hosts) {
+                if (!includeHidden && host.metadata.isHidden) continue;
+                if (host.metadata.excludeFromSubscriptionTypes.includes(templateType)) continue;
+
+                if (UNSUPPORTED_TRANSPORTS.has(host.transport)) continue;
+                if (UNSUPPORTED_PROTOCOLS.has(host.protocol)) continue;
+                if (isStash && (host.transport === 'xhttp' || host.protocol === 'anytls')) continue;
+
+                if (host.protocol === 'anytls') {
+                    const bundle = buildAnyTlsMihomo(
+                        host,
+                        host.finalRemark,
+                        allocateName,
+                        this.resolveFingerprint(host),
+                    );
+                    if (!bundle) continue;
+                    data.proxies.push(...bundle.proxies);
+                    proxyRemarks.push(bundle.entry.name);
+                    bundle.privateNames.forEach((name) => privateNames.add(name));
+                    continue;
+                }
+
+                const node = ordinary.get(host);
+                if (!node) continue;
+
+                data.proxies.push(node);
+                proxyRemarks.push(node.name);
+            }
+
             const injection = renderTopologies(
                 isStash ? [] : topologies,
                 'MIHOMO',
                 reserved,
-                (host) =>
-                    UNSUPPORTED_TRANSPORTS.has(host.transport) ||
-                    UNSUPPORTED_PROTOCOLS.has(host.protocol)
-                        ? null
-                        : this.buildProxyNode(host, isExtendedClient),
+                (host, label, allocate) => {
+                    if (
+                        UNSUPPORTED_TRANSPORTS.has(host.transport) ||
+                        UNSUPPORTED_PROTOCOLS.has(host.protocol)
+                    )
+                        return null;
+                    if (host.protocol === 'anytls')
+                        return buildAnyTlsMihomo(
+                            host,
+                            label,
+                            allocate,
+                            this.resolveFingerprint(host),
+                        );
+                    const proxy = this.buildProxyNode(host, isExtendedClient);
+                    return proxy ? singleHostProxy(proxy) : null;
+                },
             );
+            injection.privateNames.forEach((name) => privateNames.add(name));
             return await this.renderConfig(
                 data,
                 [...proxyRemarks, ...injection.entries],
                 yamlConfig,
                 injection,
+                privateNames,
             );
         } catch (error) {
             this.logger.error('Error generating clash config:', error);
@@ -617,7 +664,8 @@ export class MihomoGeneratorService {
         data: MihomoData,
         proxyRemarks: string[],
         yamlConfig: Record<string, unknown>,
-        injection: TopologyInjection = { entries: [], proxies: [], groups: [] },
+        injection: TopologyInjection = { entries: [], proxies: [], groups: [], privateNames: [] },
+        privateNames = new Set<string>(),
     ): Promise<string> {
         try {
             const { remnawave: _remnawave, ...templateConfig } = yamlConfig;
@@ -659,10 +707,11 @@ export class MihomoGeneratorService {
                 ],
             };
 
-            const providers = this.buildProxyProviders(yamlConfig, data);
+            const providers = this.buildProxyProviders(yamlConfig, data, privateNames);
             if (providers) {
                 finalConfig['proxy-providers'] = providers;
             }
+            hideAnyTlsTransports(finalConfig, privateNames);
 
             return dump(finalConfig);
         } catch (error) {
@@ -698,6 +747,7 @@ export class MihomoGeneratorService {
     private buildProxyProviders(
         yamlConfig: Record<string, unknown>,
         data: MihomoData,
+        privateNames: Set<string>,
     ): Record<string, Record<string, unknown>> | undefined {
         const providers = yamlConfig['proxy-providers'] as
             | Record<string, Record<string, unknown>>
@@ -714,7 +764,24 @@ export class MihomoGeneratorService {
                 const { remnawave: _remnawave, ...cleanProvider } = provider;
 
                 if (remnawaveCustom['include-proxies'] === true) {
-                    return [providerKey, { ...cleanProvider, payload: [...data.proxies] }];
+                    const hasOverride = isNonEmptyObject(cleanProvider.override);
+                    const payload = data.proxies.filter(
+                        (proxy) =>
+                            !privateNames.has(proxy.name) &&
+                            // Provider overrides are applied after generation by Mihomo;
+                            // never let them replace a managed node's required transport.
+                            !(hasOverride && privateNames.has(proxy['dialer-proxy'] as string)),
+                    );
+                    if (
+                        hasOverride &&
+                        payload.length <
+                            data.proxies.filter((p) => !privateNames.has(p.name)).length
+                    ) {
+                        this.logger.warn(
+                            'Managed AnyTLS omitted from an overriding proxy provider.',
+                        );
+                    }
+                    return [providerKey, { ...cleanProvider, payload }];
                 }
 
                 return [providerKey, cleanProvider];

@@ -1,7 +1,8 @@
 import { SplitHTTPMode, TCPHeaderHTTP, TCPHeaderNone, VLessFlow } from 'xray-typed';
+import { z } from 'zod';
 
 import { TMihomoIpVersion, TSubscriptionTemplateType } from '@libs/contracts/constants';
-import { THostMapper } from '@libs/contracts/models';
+import { AnyTlsProtocolOptionsSchema, THostMapper } from '@libs/contracts/models';
 
 // ─── Protocol Options ────────────────────────────────────
 
@@ -140,6 +141,7 @@ export type MieruProtocol = {
 };
 
 export type ProtocolVariant =
+    | { protocol: 'anytls'; protocolOptions: z.infer<typeof AnyTlsProtocolOptionsSchema> }
     | VlessProtocol
     | TrojanProtocol
     | ShadowsocksProtocol

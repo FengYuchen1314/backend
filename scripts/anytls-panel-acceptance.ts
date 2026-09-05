@@ -8,3 +8,4 @@ import '../src/queue/_nodes/coordinated-start.test';
 import '../src/modules/nodes/edge/node-edge-plan.test';
 import '../src/modules/nodes/events/socks-user-sync.test';
 import '../prisma/seed/seeders/6_sync-inbounds.test';
+import '../src/modules/subscription-template/generators/anytls-subscription.test';
