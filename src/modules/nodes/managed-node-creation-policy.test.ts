@@ -77,6 +77,47 @@ const mieruInbound = buildInbound({
     },
 });
 
+const anyTlsInbound = buildInbound({
+    type: 'anytls',
+    network: 'tcp',
+    security: 'tls',
+    rawInbound: {
+        protocol: 'anytls',
+        tag: 'MANAGED',
+        settings: {
+            tag: 'MANAGED',
+            wrapperPort: 14443,
+            innerPort: 16001,
+            camouflage: { serverName: 'fixture.example.com', address: '192.0.2.50', port: 443 },
+        },
+    },
+});
+
+test('managed AnyTLS admits only the encrypted profile extension on public-direct servers', () => {
+    assert.equal(getManagedNodeProtocol(anyTlsInbound), 'ANYTLS_SHADOWTLS');
+    assert.equal(validateManagedNodeCreation(SERVER_TYPES.PUBLIC_DIRECT, [anyTlsInbound]), null);
+    for (const serverType of [SERVER_TYPES.BROADBAND_LANDING, SERVER_TYPES.LEASED_LINE]) {
+        assert.match(validateManagedNodeCreation(serverType, [anyTlsInbound]) ?? '', /not allowed/);
+    }
+    for (const settingsPatch of [
+        { wrapperPort: 443 },
+        { innerPort: 14443 },
+        { tag: 'OTHER' },
+        { camouflage: { serverName: 'fixture.pages.dev', address: '192.0.2.50', port: 443 } },
+        { camouflage: { serverName: 'fixture.example.com', address: '104.16.1.1', port: 443 } },
+        { tls: { insecure: true } },
+        { users: [{ name: 'static-user', password: 'static-password' }] },
+    ]) {
+        const malformed = structuredClone(anyTlsInbound);
+        const raw = malformed.rawInbound as { settings: Record<string, unknown> };
+        Object.assign(raw.settings, settingsPatch);
+        assert.equal(getManagedNodeProtocol(malformed), null);
+    }
+    for (const patch of [{ port: 14443 }, { security: null }, { network: 'udp' }]) {
+        assert.equal(getManagedNodeProtocol({ ...anyTlsInbound, ...patch }), null);
+    }
+});
+
 test('managed presets are classified without treating imported raw protocols as managed', () => {
     assert.equal(getManagedNodeProtocol(socksInbound), 'SOCKS5');
     assert.equal(getManagedNodeProtocol(visionInbound), 'VLESS_REALITY_VISION');
@@ -168,6 +209,7 @@ test('new-node policy follows server type and rejects protocols outside the crea
             visionInbound,
             xhttpInbound,
             socksInbound,
+            anyTlsInbound,
         ]),
         null,
     );

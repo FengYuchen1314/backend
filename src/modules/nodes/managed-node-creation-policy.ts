@@ -1,8 +1,15 @@
 import { SERVER_TYPES, TServerType } from '@contract/constants';
+import { AnyTlsProfileExtensionSchema } from '@contract/models';
 
 import { ConfigProfileInboundEntity } from '@modules/config-profiles/entities';
 
+import {
+    isCloudflareCdnAddress,
+    isCloudflareCdnHostname,
+} from './camouflage-domain/cloudflare-ip-ranges';
+
 export type TManagedNodeProtocol =
+    | 'ANYTLS_SHADOWTLS'
     | 'MIERU_TCP'
     | 'SOCKS5'
     | 'VLESS_REALITY_VISION'
@@ -10,6 +17,7 @@ export type TManagedNodeProtocol =
 
 const ALLOWED_PROTOCOLS_BY_SERVER_TYPE: Record<TServerType, ReadonlySet<TManagedNodeProtocol>> = {
     [SERVER_TYPES.PUBLIC_DIRECT]: new Set([
+        'ANYTLS_SHADOWTLS',
         'SOCKS5',
         'VLESS_REALITY_VISION',
         'VLESS_XHTTP_REALITY_XMUX',
@@ -35,6 +43,23 @@ export function getManagedNodeProtocol(
     if (protocol !== inbound.type.toLowerCase()) return null;
 
     const settings = asRecord(rawInbound?.settings);
+
+    if (protocol === 'anytls') {
+        const parsed = AnyTlsProfileExtensionSchema.safeParse({
+            version: 1,
+            listeners: [settings],
+        });
+        return parsed.success &&
+            !isCloudflareCdnHostname(parsed.data.listeners[0].camouflage.serverName) &&
+            !isCloudflareCdnAddress(parsed.data.listeners[0].camouflage.address) &&
+            parsed.data.listeners[0].tag === inbound.tag &&
+            rawInbound?.tag === inbound.tag &&
+            inbound.network === 'tcp' &&
+            inbound.security === 'tls' &&
+            inbound.port === 443
+            ? 'ANYTLS_SHADOWTLS'
+            : null;
+    }
 
     if (protocol === 'mieru') {
         return settings?.transport === 'TCP' ? 'MIERU_TCP' : null;
