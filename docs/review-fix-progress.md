@@ -130,7 +130,10 @@ the VPS. The private test directory is `/opt/xboard-anytls-test.vEeHlL09`, its d
 was removed, and there were no host ports, Docker socket, host-network access or panel processes.
 This is still a protocol proof, not an AnyTLS-capable managed Node image.
 
-## Still required
+## Historical remaining work at the opt-in runtime checkpoint
+
+This section is retained as historical context, not the current completion list.
+Later managed installer, accounting and browser acceptance is summarized below.
 
 Update after the security-only checkpoints above: Node b027eb9 now provides an opt-in managed
 AnyTLS runtime (default-disabled), with native configuration/certificate validation, supervised
@@ -184,3 +187,30 @@ Do not mark remediation complete until these remaining items have direct evidenc
   signals, even when an Agent says `detected: false` or an older cache says `eligible: true`.
   Unknown provenance is not promoted by the new probe. Full managed start/edit-path enforcement
   and current authenticated probe ingestion remain part of the integration work.
+
+## Current accepted checkpoint — 2026-09-05
+
+The source/image-specific records below supersede historical pending claims;
+they do not mark the whole screenshot scope complete:
+
+- [Managed encrypted AnyTLS creation](anytls-managed-creation.md): exact backend
+  `0b5125d1` / frontend `1addfa95` image passed Actions, real browser creation and
+  validation, server-type filtering and original panel-only installation with
+  `creationMode: MANAGED` on the test VPS.
+- [Cumulative accounting](anytls-cumulative-accounting.md): real native Mihomo
+  subscription traffic reached the scheduled panel worker, PostgreSQL and user
+  API. Agent container replacement retained the named state volume and cumulative
+  billing cursor; further traffic and repeated polling were verified.
+- The Mieru/Xray editor loading, dirty-state and actual HTTP-failure/retry checks
+  are recorded in the frontend's `docs/config-editor-runtime-loading.md`.
+  Existing browser profiles/hosts/topologies were preserved across upgrades.
+
+The major unclosed acceptance areas remain simultaneous VLESS/AnyTLS/website
+shared-443 traffic, complete reverse-proxy/public-certificate behavior, full
+cross-physical-server protocol/topology interoperability, the requested distinct
+regional domain pools, one-click update/recovery and the final requirement audit.
+Domain observations from the one supplied mainland network must be labelled as
+such; they cannot establish nationwide reachability. The existing two-ASN pool
+gate is implementation policy, not an additional user-provided acceptance
+requirement. No new agent, public host port or change to existing PDF/MMW services
+is implied by these outstanding checks.

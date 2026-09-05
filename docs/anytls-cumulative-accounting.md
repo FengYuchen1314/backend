@@ -131,7 +131,7 @@ exposed orchestration mistakes (DNS namespace, numeric user identity, required
 restart body and empty accepted response); only the final successful run above
 is the complete end-to-end checkpoint.
 
-## Installer follow-up (not yet deployed)
+## Installer implementation (accepted below)
 
 The public-direct installer now explicitly sets `ANYTLS_ENABLED=true` and
 `ANYTLS_STATE_DIR=/var/lib/remnanode/anytls` and mounts the named
@@ -187,3 +187,17 @@ host network was the private engine namespace, not the VPS host. No application
 or native compilation occurred on the VPS. This checkpoint used external-import
 creation; managed creation with the new whitelist/UI, browser workflow, UDP and
 public ACME still require their own acceptance.
+
+## Managed-creation follow-up — 2026-09-05
+
+The exact backend `0b5125d1` / frontend `1addfa95` paired image also passed the
+original installer/replacement test in **managed** mode, in
+`/opt/xboard-anytls-bootstrap.f7xNvTfI` (exit 0). This run charged 957 raw bytes as
+478 bytes at multiplier 0.5, retained the same epoch/counters through Agent
+container replacement, then charged cumulative 1,911 raw bytes as 955 bytes after
+further native traffic. Fractional carry and repeated polling were checked along
+with node multiplier 2, history, lifetime traffic, cursor and user API totals.
+The full image digest, browser checks and preservation evidence are in
+[anytls-managed-creation.md](anytls-managed-creation.md). This does not expand the
+TCP/persistence acceptance into simultaneous native-Xray billing or power-loss
+guarantees.
