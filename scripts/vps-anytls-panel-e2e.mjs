@@ -85,7 +85,13 @@ http://127.0.0.1:18080, http://127.0.0.1:18443 {
     );
     process.exit(0);
 }
-if (phase === 'proxy') {
+if (phase === 'resolve-camouflage') {
+    const serverName = 'lax1.vultrobjects.com';
+    await save(
+        'camouflage.json',
+        JSON.stringify({ serverName, address: (await resolve4(serverName))[0], port: 443 }),
+    );
+} else if (phase === 'proxy') {
     createServer((incoming, outgoing) => {
         const headers = {
             ...incoming.headers,
@@ -171,8 +177,7 @@ if (phase === 'proxy') {
             'PASS: real panel bootstrap, disposable administrator and API-issued Agent credentials\n',
         );
     } else if (phase === 'configure') {
-        const serverName = 'lax1.vultrobjects.com';
-        const address = (await resolve4(serverName))[0];
+        const { serverName, address } = JSON.parse(await read('camouflage.json'));
         const profile = await api('/config-profiles', 'POST', {
             name: 'E2E encrypted AnyTLS',
             config: {

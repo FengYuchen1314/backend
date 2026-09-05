@@ -90,6 +90,7 @@ for name in "${created[@]}"; do
   test "$(docker inspect "$name" --format '{{len .HostConfig.PortBindings}}')" = 0
   test -z "$(docker inspect "$name" --format '{{.HostConfig.PidMode}}')"
 done
+docker exec "$prefix-agent" node /test/vps-anytls-panel-e2e.mjs resolve-camouflage
 docker exec "$prefix-panel" node /test/vps-anytls-panel-e2e.mjs configure
 docker exec "$prefix-agent" node /test/vps-anytls-panel-e2e-client.mjs
 docker exec "$prefix-panel" node /test/vps-anytls-panel-e2e.mjs verify
